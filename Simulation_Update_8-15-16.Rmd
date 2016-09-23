@@ -1,0 +1,455 @@
+---
+title: "Simulation_Update_8-15-16"
+author: "Sadie Wisotsky"
+date: "August 15, 2016"
+output: 
+  word_document: 
+    fig_caption: yes
+    fig_height: 5.5
+    fig_width: 7
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(jsonlite)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(reshape2)
+```
+
+```{r branch lengths, echo=FALSE, include=FALSE}
+require("tidyr")
+#Right now these are just he BUSTED-SRV branch lengths
+branch_length <- function(cur.dir){
+  jsons <- list.files(path = cur.dir,
+                      pattern = '*.json')
+  
+  #create empty data.frame with variable names
+  
+  df = read.table(text="", col.names = c("Branch", "File", "length.SRV","length.BUSTED"))
+  for (i in  seq(from=1, to=length(jsons), by=2)){
+    
+    
+    FILE = jsons[i]
+   
+    
+    if(grepl("SRV", jsons[i])){
+      method = "SRV"
+      filepath = paste(cur.dir,jsons[i], sep="")
+    
+    test = fromJSON(filepath)
+      tree_string = test$fits$`Unconstrained model`$`tree string`
+ 
+          x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>%
+            str_replace_all(",",":") %>% str_split(":")
+    x= unlist(x)
+    x =x[x !=""]
+    br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.srv = br_len[,2]
+    
+    if(grepl("SRV",jsons[i+1])==FALSE){
+      method = "BUSTED"   
+      filepath = paste(cur.dir,jsons[i+1], sep="")
+    
+    test = fromJSON(filepath)
+          tree_string = test$fits$`Unconstrained model`$`tree string`
+
+      x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>% 
+        str_replace_all(",",":") %>% str_split(":")
+    x= unlist(x)
+    x =x[x !=""]
+    br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.BUSTED = br_len[,2]
+      for(k in seq(from=1,to=length(br_len)/2)){
+      df[nrow(df)+1,]=c(br_len[k,1], FILE, length.srv[k],length.BUSTED[k])
+      }
+  }
+  #df_wide = spread(df,File, length)
+    return(df)
+}
+```
+
+```{r more functions, echo = FALSE, include=FALSE}
+#adds significant categories and normalizes alphas
+process.dat <- function(dat, redo.alphas = TRUE){
+### Add sig categories
+  dat= cbind(dat,p.cat=cut(dat$BUSTED.P,breaks=c(-Inf,0.05,Inf),
+                            labels = c("S V B", "NS V B")))
+  dat= cbind(dat,p.srv.cat=cut(dat$BUSTED.SRV.P,breaks=c(-Inf,0.05,Inf),
+                                labels = c("S V BSRV", "NS V BSRV")))
+###rearrange alphas
+  if(redo.alphas==TRUE){
+    normalize = dat$SRV.alpha1.MLE*dat$SRV.alpha1.prop + 
+                dat$SRV.alpha2.MLE*dat$SRV.alpha2.prop+ 
+                dat$SRV.alpha3.MLE*dat$SRV.alpha3.prop
+      
+    
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE/normalize,
+            true.alpha2 = dat$SRV.alpha2.MLE/normalize,
+            true.alpha3 = dat$SRV.alpha3.MLE/normalize)
+  }
+  else{
+    #sets the true.alpha values to just the standard MLE 
+    #makes the rest of the stream line analysis easier. 
+    #it's either this or make you specify alpha variables in later steps...
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE,
+                true.alpha2 = dat$SRV.alpha2.MLE,
+                true.alpha3 = dat$SRV.alpha3.MLE)  }
+}
+
+
+
+```
+
+```{r summary stats, echo = FALSE, include=FALSE}
+# here's where you'd have to start specifying other alphas 
+# returns a list of statistics generated from the boxplot function 
+# note the omega3 value here is from BUSTED SRV 
+# not the omega3 from BUSTED for the same file
+box.sum.stats <- function(dat, subset = NULL){
+  omega3 = boxplot(
+    dat$BUSTED.SRV.omega3.MLE ~ dat$p.cat + dat$p.srv.cat, data = dat, 
+    subset = subset, plot = FALSE
+  )
+  
+  alpha1 = boxplot(
+    dat$true.alpha1 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+
+  alpha2 = boxplot(
+    dat$true.alpha2 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+
+  alpha3 = boxplot(
+   dat$true.alpha3 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+   subset = subset,plot = FALSE
+  )
+  results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.tables <- function(box.stats){
+  catnames = c("Sel for both", "No Sel for BUSTED", "No Sel for SRV", "No Sel for both")
+  statlist = c("lower whisker","lower hinge","median","upper hinge","upper whisker", "number of files")
+  omega3 = box.stats$omega3$stats
+  omega3 = rbind(omega3,box.stats$omega3$n)
+  colnames(omega3) = catnames
+  rownames(omega3) = statlist
+  
+  alpha1 = box.stats$alpha1$stats
+  alpha1 = rbind(alpha1,box.stats$alpha1$n)
+  colnames(alpha1) = catnames
+  rownames(alpha1) = statlist
+  
+  alpha2 = box.stats$alpha2$stats
+  alpha2 = rbind(alpha2,box.stats$alpha2$n)
+  colnames(alpha2) = catnames
+  rownames(alpha2) = statlist
+  
+  alpha3 = box.stats$alpha3$stats
+  alpha3 = rbind(alpha3,box.stats$alpha3$n)
+  colnames(alpha3) = catnames
+  rownames(alpha3) = statlist
+  
+   results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.summary.o.tabs <- function(dat){
+  omega1.busted =  summary(dat$BUSTED.omega1.MLE)
+  omega1.srv = summary(dat$BUSTED.SRV.omega1.MLE)
+  omega2.busted =summary(dat$BUSTED.omega2.MLE)
+  omega2.srv = summary(dat$BUSTED.SRV.omega2.MLE)
+  omega3.busted =summary(dat$BUSTED.omega3.MLE)
+  omega3.srv = summary(dat$BUSTED.SRV.omega3.MLE)
+  results = rbind(omega1.busted,omega1.srv,omega2.busted,omega2.srv,omega3.busted,omega3.srv)
+  return(results)
+}
+gen.summary.a.tabs <- function(dat){
+  
+  alpha1.srv = summary(dat$SRV.alpha1.MLE)
+  alpha2.srv = summary(dat$SRV.alpha2.MLE)
+  alpha3.srv = summary(dat$SRV.alpha3.MLE)
+  results = rbind(alpha1.srv, alpha2.srv,alpha3.srv)
+  return(results)
+}
+```
+
+```{r gen sig table, include=FALSE}
+gen.sig.table <- function(dat){
+  require("xtable")
+  library("xtable")
+  
+  under.sel.busted = which(dat$BUSTED.P<=0.05)
+  under.sel.srv = which(dat$BUSTED.SRV.P<=0.05)
+  if( length(under.sel.srv) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("Selection:BUSTED")
+    colnames(sel.tab) = c("No Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html")
+    #print(kable(test.table))
+    #return("All alignments are not significant according to BUSTED+SRV")
+  }
+  else if( length(under.sel.busted) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("No Selection:BUSTED")
+    colnames(sel.tab) = c("Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html", file="sel-table.html")
+    #return("All alignments are not significant according to BUSTED")
+  }
+  else {
+  mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                dimnames= list(1:length(dat$BUSTED.P),
+                               c("BUSTED", "BUSTED-SRV")))
+  mat[under.sel.busted,1] = 1
+  mat[under.sel.srv,2] = 1 
+  sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+  row.names(sel.tab) = c("No Selection", "Selection")
+  colnames(sel.tab) = c("No Selection", "Selection")
+  Sel.Prop =prop.table(sel.tab)
+  test.table = xtable(Sel.Prop)
+  #print.xtable(test.table, type = "html", file="sel-table.html")
+  }
+  return(test.table)
+}
+```
+
+```{r test1 data set-up, echo=FALSE}
+
+test1.dat=read.csv("G:/BRC/SimResults/test1/test1_results.csv",  as.is = T)
+test1.brlen = branch_length("G:/BRC/SimResults/test1/")
+test1.process.dat = process.dat(test1.dat)
+test1.melt.dat=melt(test1.process.dat[,c(1,31:35)])
+test1.sum.stat = box.sum.stats(test1.process.dat)
+test1.bias = test1.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+The goal of this write up is to show the results of several simulations analyzed with BUSTED and BUSTED-SRV. These simulations will be used to check if both analyses are returning the expected results, as well as how the results compare to each other and as a check on the code being used to analyze and compile the results. There are four categories of simulations we are interested in, files with no selection and no synonymous rate variation, those with selection and no synonymous rate variation, those with selection and with synonymous rate variation and finally those without selection and with synonymous rate variation. Evidence of selection in the simulation is achieved by setting the omega 3 rate category greater than one. Synonymous rate variation is controlled by how the alpha rates are set. If the alpha rates all differ in value and all have a weight greater than zero, there is SRV. If the alpha rates do not differ or all but one have rates of zero there should be no SRV. 
+
+#Simulation with SRV and no selection
+
+
+
+```{r set up truth table test1, echo=FALSE}
+
+truth.test1 = matrix(c(0.13333334,0.66666666667,6.666666667,0.1,0.5,1,0.5,0.4,0.099999998,0.5,0.25,0.35),nrow = 6, ncol= 2)
+colnames(truth.test1)= c("Rate", "Weight")
+rownames(truth.test1) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+For this test I simulated data using the large.nex.LF. The parameters were choosen to be strictly neutral with SRV and a high alpha 3 rate. So here I'd expect to see no detection of positive selection (or about 5 false positive per 100 files simulated).  
+
+ Simulation of large.nex LF with the profile:  
+ `r kable(truth.test1, "markdown")`
+
+```{r summary stats table, echo = FALSE}
+Truth = c(truth.test1[4,1],truth.test1[4,1],truth.test1[5,1],truth.test1[5,1],truth.test1[6,1],truth.test1[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(test1.process.dat)[,3:4] %>% cbind(Truth) 
+
+sum.table.alphas = gen.summary.a.tabs(test1.process.dat)[,3:4] %>% cbind("Truth"=c(truth.test1[1:3,1]))
+
+```
+
+A table comparison of the estimated mean values of the omega rates and the true values:  
+`r kable(sum.table.omegas,"markdown")`
+
+And a quick table comparison of the mean estimated alphas and the true values:
+
+`r kable(sum.table.alphas,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind(as.numeric(Truth),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+test1.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free")+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") 
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms test1, echo = F, warning=F}
+truth.alpha=c(truth.test1[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(test1.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot test1}
+plot(test1.dat$BUSTED.P,test1.dat$BUSTED.SRV.P,ylim = c(0,1))
+abline(h=0.05,v=0.05, col = 'red')
+```
+
+```{r sel table test1, echo = FALSE}
+kable(gen.sig.table(test1.dat))
+```
+
+As far as power goes, for this simulation because there is SRV and no selection, BUSTED-SRV correctly identfies that none of the simulation replicates have evidence of positive selection. WHile BUSTED incorrectly identifies all of the replicants. However, in this simulation, the assumptions BUSTED makes are not met, i.e. BUSTED assumes no SRV and this simulation is set to have SRV.  
+
+
+# No SRV, Yes Selection
+```{r noSRV data set-up, echo=FALSE}
+
+noSRV.dat=read.csv("G:/BRC/SimResults/noSRV/noSRV_results.csv",  as.is = T)
+noSRV.brlen = branch_length("G:/BRC/SimResults/noSRV/")
+noSRV.process.dat = process.dat(noSRV.dat)
+noSRV.melt.dat=melt(noSRV.process.dat[,c(1,31:35)])
+noSRV.sum.stat = box.sum.stats(noSRV.process.dat)
+noSRV.bias = noSRV.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+```{r set up truth table noSRV, echo=FALSE}
+
+truth.noSRV = matrix(c(1,0.6666666666666666,3,0.33333333333,0.7,7,1,0,0,0.3333333333,0.33333,0.3333366667000001),nrow = 6, ncol= 2)
+colnames(truth.noSRV)= c("Rate", "Weight")
+rownames(truth.noSRV) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+For this test I simulated data using the bothSel.LF. The parameters were chosen to give evidence of selection but to have no SRV. In order to have no SRV, I set the 3 alpha rates but only gave a weight to alpha 1. From this simulation I would expect to see BUSTED detect selection and BUSTED+SRV detect some evidence of selction as well. However, I would expect the alpha rates to be close to 1. 
+
+ Simulation of large.nex LF with the profile:  
+ `r kable(truth.noSRV, "markdown")`
+
+```{r summary stats table noSRV, echo = FALSE}
+Truth = c(truth.noSRV[4,1],truth.noSRV[4,1],truth.noSRV[5,1],truth.noSRV[5,1],truth.noSRV[6,1],truth.noSRV[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(noSRV.process.dat)[,3:4] %>% cbind(Truth) 
+
+sum.table.alphas = gen.summary.a.tabs(noSRV.process.dat)[,3:4] %>% cbind("Truth"=c(truth.noSRV[1:3,1]))
+
+```
+
+a quick table comparison of the estimated mean values of the omega rates and the true values:  
+`r kable(sum.table.omegas,"markdown")`
+
+And a quuick table comparison of the mean estimated alphas and the true values:
+
+`r kable(sum.table.alphas,"markdown")`
+
+
+```{r, echo = FALSE}
+q = cbind(as.numeric(Truth),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+noSRV.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free")+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") 
+
+```
+
+the histograms below show the distribution of the alpha rates
+
+```{r boxplot noSRV, echo = F, warning=F}
+truth.alpha=c(truth.noSRV[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(noSRV.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x")+ geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot noSRV, echo = FALSE}
+plot(noSRV.dat$BUSTED.P,noSRV.dat$BUSTED.SRV.P,ylim = c(0,1))
+abline(h=0.05,v=0.05, col = 'red')
+```
+
+ ```{r sel table noSRV, echo = FALSE}
+# kable(gen.sig.table(noSRV.dat))
+```
+
+talk about power here  
+
+
+#Yes SRV Yes Selection 
+
+```{r highOlowA data set-up, echo=FALSE}
+
+highOlowA.dat=read.csv("G:/BRC/SimResults/highOlowA/highOlowA_results.csv",  as.is = T)
+highOlowA.brlen = branch_length("G:/BRC/SimResults/highOlowA/")
+highOlowA.process.dat = process.dat(highOlowA.dat)
+highOlowA.melt.dat=melt(highOlowA.process.dat[,c(1,31:35)])
+highOlowA.sum.stat = box.sum.stats(highOlowA.process.dat)
+highOlowA.bias = highOlowA.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+```{r set up truth table highOlowA, echo=FALSE}
+
+truth.highOlowA = matrix(c(0.3076923076923078,1.538461538461538,2.307692307692307,0.1,1,7,0.5,0.4,0.09999999999999998,0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.highOlowA)= c("Rate", "Weight")
+rownames(truth.highOlowA) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+For this test I simulated data using the bothSel.LF. The parameters for this simulation were choosen such that there should be both selection and SRV. As can be seen in the table below there are varying alpha rates all with weights and a high omega 3.
+
+ Simulation of large.nex LF with the profile:  
+ `r kable(truth.highOlowA, "markdown")`
+
+```{r summary stats table highOlowA, echo = FALSE}
+Truth = c(truth.highOlowA[4,1],truth.highOlowA[4,1],truth.highOlowA[5,1],truth.highOlowA[5,1],truth.highOlowA[6,1],truth.highOlowA[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(highOlowA.process.dat)[,3:4] %>% cbind(Truth) 
+
+sum.table.alphas = gen.summary.a.tabs(highOlowA.process.dat)[,3:4] %>% cbind("Truth"=c(truth.highOlowA[1:3,1]))
+
+```
+
+a quick table comparison of the estimated mean values of the omega rates and the true values:  
+`r kable(sum.table.omegas,"markdown")`
+
+And a quick table comparison of the mean estimated alphas and the true values:
+
+`r kable(sum.table.alphas,"markdown")`
+
+
+```{r, echo = FALSE}
+q = cbind(as.numeric(Truth),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+highOlowA.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free")+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") 
+
+```
+
+the histograms below show the distribution of the alpha rates
+
+```{r boxplot highOlowA, echo = F, warning=F}
+truth.alpha=c(truth.highOlowA[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(highOlowA.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept=truth.alpha),color = "red")
+
+```
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot highOlowA, echo = FALSE}
+plot(highOlowA.dat$BUSTED.P,highOlowA.dat$BUSTED.SRV.P,ylim = c(0,1))
+abline(h=0.05,v=0.05, col = 'red')
+```
+
+ ```{r sel table highOlowA, echo = FALSE}
+# kable(gen.sig.table(highOlowA.dat))
+```
+
+

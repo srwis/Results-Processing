@@ -1,0 +1,1130 @@
+---
+title: "Simulation_Update-8-22-16"
+author: "Sadie Wisotsky"
+date: "August 22, 2016"
+output:
+  pdf_document: default
+  word_document:
+    fig_caption: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(jsonlite)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(reshape2)
+library(dplyr)
+
+#Right now these are just he BUSTED-SRV branch lengths
+branch_length <- function(cur.dir){
+  jsons <- list.files(path = cur.dir,
+                      pattern = '*.json')
+  
+  #create empty data.frame with variable names
+  
+  df = read.table(text="", col.names = c("Branch", "File", "length.SRV","length.BUSTED"))
+  for (i in  seq(from=1, to=length(jsons), by=2)){
+    
+    
+    FILE = jsons[i]
+    
+    
+    if(grepl("SRV", jsons[i])){
+      method = "SRV"
+      filepath = paste(cur.dir,jsons[i], sep="")
+      
+      test = fromJSON(filepath)
+      tree_string = test$fits$`Unconstrained model`$`tree string`
+      
+      x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>%
+        str_replace_all(",",":") %>% str_split(":")
+      x= unlist(x)
+      x =x[x !=""]
+      br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.srv = br_len[,2]
+    
+    if(grepl("SRV",jsons[i+1])==FALSE){
+      method = "BUSTED"   
+      filepath = paste(cur.dir,jsons[i+1], sep="")
+      
+      test = fromJSON(filepath)
+      tree_string = test$fits$`Unconstrained model`$`tree string`
+      
+      x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>% 
+        str_replace_all(",",":") %>% str_split(":")
+      x= unlist(x)
+      x =x[x !=""]
+      br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.BUSTED = br_len[,2]
+    for(k in seq(from=1,to=length(br_len)/2)){
+      df[nrow(df)+1,]=c(br_len[k,1], FILE, length.srv[k],length.BUSTED[k])
+    }
+  }
+  #df_wide = spread(df,File, length)
+  return(df)
+}
+
+#adds significant categories and normalizes alphas
+process.dat <- function(dat, redo.alphas = TRUE){
+  ### Add sig categories
+  dat= cbind(dat,p.cat=cut(dat$BUSTED.P,breaks=c(-Inf,0.05,Inf),
+                           labels = c("S V B", "NS V B")))
+  dat= cbind(dat,p.srv.cat=cut(dat$BUSTED.SRV.P,breaks=c(-Inf,0.05,Inf),
+                               labels = c("S V BSRV", "NS V BSRV")))
+  ###rearrange alphas
+  if(redo.alphas==TRUE){
+    normalize = dat$SRV.alpha1.MLE*dat$SRV.alpha1.prop + 
+      dat$SRV.alpha2.MLE*dat$SRV.alpha2.prop+ 
+      dat$SRV.alpha3.MLE*dat$SRV.alpha3.prop
+    
+    
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE/normalize,
+                true.alpha2 = dat$SRV.alpha2.MLE/normalize,
+                true.alpha3 = dat$SRV.alpha3.MLE/normalize)
+  }
+  else{
+    #sets the true.alpha values to just the standard MLE 
+    #makes the rest of the stream line analysis easier. 
+    #it's either this or make you specify alpha variables in later steps...
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE,
+                true.alpha2 = dat$SRV.alpha2.MLE,
+                true.alpha3 = dat$SRV.alpha3.MLE)  }
+}
+
+# here's where you'd have to start specifying other alphas 
+# returns a list of statistics generated from the boxplot function 
+# note the omega3 value here is from BUSTED SRV 
+# not the omega3 from BUSTED for the same file
+box.sum.stats <- function(dat, subset = NULL){
+  omega3 = boxplot(
+    dat$BUSTED.SRV.omega3.MLE ~ dat$p.cat + dat$p.srv.cat, data = dat, 
+    subset = subset, plot = FALSE
+  )
+  
+  alpha1 = boxplot(
+    dat$true.alpha1 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+  
+  alpha2 = boxplot(
+    dat$true.alpha2 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+  
+  alpha3 = boxplot(
+    dat$true.alpha3 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset,plot = FALSE
+  )
+  results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.tables <- function(box.stats){
+  catnames = c("Sel for both", "No Sel for BUSTED", "No Sel for SRV", "No Sel for both")
+  statlist = c("lower whisker","lower hinge","median","upper hinge","upper whisker", "number of files")
+  omega3 = box.stats$omega3$stats
+  omega3 = rbind(omega3,box.stats$omega3$n)
+  colnames(omega3) = catnames
+  rownames(omega3) = statlist
+  
+  alpha1 = box.stats$alpha1$stats
+  alpha1 = rbind(alpha1,box.stats$alpha1$n)
+  colnames(alpha1) = catnames
+  rownames(alpha1) = statlist
+  
+  alpha2 = box.stats$alpha2$stats
+  alpha2 = rbind(alpha2,box.stats$alpha2$n)
+  colnames(alpha2) = catnames
+  rownames(alpha2) = statlist
+  
+  alpha3 = box.stats$alpha3$stats
+  alpha3 = rbind(alpha3,box.stats$alpha3$n)
+  colnames(alpha3) = catnames
+  rownames(alpha3) = statlist
+  
+  results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.summary.o.tabs <- function(dat){
+  omega1.busted =  summary(dat$BUSTED.omega1.MLE)
+  omega1.srv = summary(dat$BUSTED.SRV.omega1.MLE)
+  omega2.busted =summary(dat$BUSTED.omega2.MLE)
+  omega2.srv = summary(dat$BUSTED.SRV.omega2.MLE)
+  omega3.busted =summary(dat$BUSTED.omega3.MLE)
+  omega3.srv = summary(dat$BUSTED.SRV.omega3.MLE)
+  results = rbind(omega1.busted,omega1.srv,omega2.busted,omega2.srv,omega3.busted,omega3.srv)
+  return(results)
+}
+gen.summary.a.tabs <- function(dat){
+  
+  alpha1.srv = summary(dat$true.alpha1)
+  alpha2.srv = summary(dat$true.alpha2)
+  alpha3.srv = summary(dat$true.alpha3)
+  results = rbind(alpha1.srv, alpha2.srv,alpha3.srv)
+  return(results)
+}
+
+gen.sig.table <- function(dat){
+  require("xtable")
+  library("xtable")
+  
+  under.sel.busted = which(dat$BUSTED.P<=0.05)
+  under.sel.srv = which(dat$BUSTED.SRV.P<=0.05)
+  if( length(under.sel.srv) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("Selection:BUSTED")
+    colnames(sel.tab) = c("No Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html")
+    #print(kable(test.table))
+    #return("All alignments are not significant according to BUSTED+SRV")
+  }
+  else if( length(under.sel.busted) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("No Selection:BUSTED")
+    colnames(sel.tab) = c("Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html", file="sel-table.html")
+    #return("All alignments are not significant according to BUSTED")
+  }
+  else {
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("No Selection", "Selection")
+    colnames(sel.tab) = c("No Selection", "Selection")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html", file="sel-table.html")
+  }
+  return(Sel.Prop)
+}
+```
+
+
+
+```{r NoNo data set-up, echo=FALSE}
+
+NoNo.dat=read.csv("E:/BRC/SimResults/Five_seq/NoNo_results.csv",  as.is = T)
+#NoNo.brlen = branch_length("E:/BRC/SimResults/NoNo/")
+NoNo.process.dat = process.dat(NoNo.dat)
+NoNo.melt.dat=melt(NoNo.process.dat[,c(1,31:35)])
+NoNo.sum.stat = box.sum.stats(NoNo.process.dat)
+NoNo.bias = NoNo.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+
+#Simulation with no SRV and no selection
+
+
+
+```{r set up truth table NoNo, echo=FALSE}
+
+truth.NoNo = matrix(c(1,1,1,0.1,0.5,1,0.333,0.333,0.3337000000000001,0.5,0.25,0.25),nrow = 6, ncol= 2)
+colnames(truth.NoNo)= c(" True Rates", "True Weights")
+rownames(truth.NoNo) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+```{r summary stats table NoNo, echo = FALSE}
+true.omegas.rates = c(truth.NoNo[4,1],truth.NoNo[4,1],truth.NoNo[5,1],truth.NoNo[5,1],truth.NoNo[6,1],truth.NoNo[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoNo.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoNo.dat$BUSTED.omega1.prop, NoNo.dat$BUSTED.SRV.omega1.prop,NoNo.dat$BUSTED.omega2.prop,NoNo.dat$BUSTED.SRV.omega2.prop,NoNo.dat$BUSTED.omega3.prop,NoNo.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoNo[4,2],truth.NoNo[4,2],truth.NoNo[5,2],truth.NoNo[5,2], truth.NoNo[6,2], truth.NoNo[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoNo.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoNo[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoNo.process.dat$SRV.alpha1.prop,NoNo.process.dat$SRV.alpha2.prop,NoNo.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoNo[1:3,2])
+
+sum.table.NoNo = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoNo,"markdown", caption = "Summary Table for Simulation with No Selection and No SRV")`
+
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table.NoNo[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+NoNo.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega Rates For No Selection and SRV")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms NoNo, echo = F, warning=F}
+truth.alpha=c(truth.NoNo[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoNo.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")+ ggtitle("Distribution of Alpha Rates For No Selection and SRV")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot NoNo}
+ggplot(NoNo.process.dat, aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+
+
+ggplot(NoNo.process.dat, aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_bin2d(binwidth=c(0.01,0.01))+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+```{r sel table NoNo, echo = FALSE}
+kable(gen.sig.table(NoNo.dat))
+```
+
+##plots without the 3 major outliers:
+
+```{r, echo = FALSE}
+ NoNo.dat.no.outs=NoNo.process.dat[-c(65,21),]
+```
+
+
+
+```{r set up truth table1 NoNo, echo=FALSE}
+
+truth.NoNo = matrix(c(1,1,1,0.1,0.5,1,0.333,0.333,0.3337000000000001,0.5,0.25,0.25),nrow = 6, ncol= 2)
+colnames(truth.NoNo)= c(" True Rates", "True Weights")
+rownames(truth.NoNo) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+```{r summary stats table 1, echo = FALSE}
+true.omegas.rates = c(truth.NoNo[4,1],truth.NoNo[4,1],truth.NoNo[5,1],truth.NoNo[5,1],truth.NoNo[6,1],truth.NoNo[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoNo.dat.no.outs)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoNo.dat.no.outs$BUSTED.omega1.prop, NoNo.dat.no.outs$BUSTED.SRV.omega1.prop,NoNo.dat.no.outs$BUSTED.omega2.prop,NoNo.dat.no.outs$BUSTED.SRV.omega2.prop,NoNo.dat.no.outs$BUSTED.omega3.prop,NoNo.dat.no.outs$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoNo[4,2],truth.NoNo[4,2],truth.NoNo[5,2],truth.NoNo[5,2], truth.NoNo[6,2], truth.NoNo[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoNo.dat.no.outs)[,3:4] %>% cbind("True Rates"=c(truth.NoNo[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoNo.dat.no.outs$SRV.alpha1.prop,NoNo.dat.no.outs$SRV.alpha2.prop,NoNo.dat.no.outs$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoNo[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+
+NoNo.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = Truth),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r his1tograms NoNo, echo = F, warning=F}
+truth.alpha=c(truth.NoNo[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoNo.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p pl1ot NoNo}
+NoNo.dat.no.outs%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+```{r boxplot, echo = FALSE}
+NoNo.dat.no.outs %>% group_by(p.cat,p.srv.cat)%>% select(contains("true"))%>% melt() %>% ggplot(aes(x = variable, y = value))+geom_boxplot(aes(color=interaction(p.cat,p.srv.cat)))+coord_flip(ylim = c(0,10))
+
+```
+
+
+```{r se1l table NoNo, echo = FALSE}
+kable(gen.sig.table(NoNo.dat.no.outs))
+```
+
+*********************************************
+#No Yes
+Simulation with no selection and with a large amount of SRV. 
+```{r NoYes data set-up, echo=FALSE}
+
+NoYes.dat=read.csv("E:/BRC/SimResults/Five_seq/NoYes_results.csv",  as.is = T)
+#NoYes.brlen = branch_length("E:/BRC/SimResults/NoYes/")
+NoYes.process.dat = process.dat(NoYes.dat)
+NoYes.melt.dat=melt(NoYes.process.dat[,c(1,31:35)])
+NoYes.sum.stat = box.sum.stats(NoYes.process.dat)
+NoYes.bias = NoYes.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r remove outliers NoYes, echo = FALSE}
+MLE.NoYes = NoYes.process.dat %>% select(contains("MLE")) 
+
+NoYes.process.dat =NoYes.process.dat[-unlist(apply(MLE.NoYes, 2, FUN = function(col) which(col >9999))),]
+```
+
+
+
+```{r set up truth table NoYes, echo=FALSE}
+
+truth.NoYes = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,0.1,0.5,1,0.5,0.4,0.09999999999999998,0.5,0.25,0.25),nrow = 6, ncol= 2)
+colnames(truth.NoYes)= c(" True Rates", "True Weights")
+rownames(truth.NoYes) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table NoYes, echo = FALSE}
+true.omegas.rates = c(truth.NoYes[4,1],truth.NoYes[4,1],truth.NoYes[5,1],truth.NoYes[5,1],truth.NoYes[6,1],truth.NoYes[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoYes.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoYes.dat$BUSTED.omega1.prop, NoYes.dat$BUSTED.SRV.omega1.prop,NoYes.dat$BUSTED.omega2.prop,NoYes.dat$BUSTED.SRV.omega2.prop,NoYes.dat$BUSTED.omega3.prop,NoYes.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoYes[4,2],truth.NoYes[4,2],truth.NoYes[5,2],truth.NoYes[5,2], truth.NoYes[6,2], truth.NoYes[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoYes.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoYes[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoYes.process.dat$SRV.alpha1.prop,NoYes.process.dat$SRV.alpha2.prop,NoYes.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoYes[1:3,2])
+
+sum.table.NoYes = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoYes,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+NoYes.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms NoYes, echo = F, warning=F}
+truth.alpha=c(truth.NoYes[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoYes.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot NoYes}
+NoYes.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+
+
+
+********************************
+
+#YesYes data
+
+```{r YesYes data set-up, echo=FALSE}
+
+YesYes.dat=read.csv("E:/BRC/SimResults/Five_seq/YesYes_results.csv",  as.is = T)
+#YesYes.brlen = branch_length("E:/BRC/SimResults/YesYes/")
+YesYes.process.dat = process.dat(YesYes.dat)
+YesYes.melt.dat=melt(YesYes.process.dat[,c(1,31:35)])
+YesYes.sum.stat = box.sum.stats(YesYes.process.dat)
+YesYes.bias = YesYes.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r set up truth table YesYes, echo=FALSE}
+
+truth.YesYes = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,0.1,0.5,7,0.5,0.4,0.09999999999999998,0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesYes)= c(" True Rates", "True Weights")
+rownames(truth.YesYes) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesYes, echo = FALSE}
+true.omegas.rates = c(truth.YesYes[4,1],truth.YesYes[4,1],truth.YesYes[5,1],truth.YesYes[5,1],truth.YesYes[6,1],truth.YesYes[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesYes.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesYes.dat$BUSTED.omega1.prop, YesYes.dat$BUSTED.SRV.omega1.prop,YesYes.dat$BUSTED.omega2.prop,YesYes.dat$BUSTED.SRV.omega2.prop,YesYes.dat$BUSTED.omega3.prop,YesYes.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesYes[4,2],truth.YesYes[4,2],truth.YesYes[5,2],truth.YesYes[5,2], truth.YesYes[6,2], truth.YesYes[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesYes.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesYes[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesYes.process.dat$SRV.alpha1.prop,YesYes.process.dat$SRV.alpha2.prop,YesYes.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesYes[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesYes.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesYes, echo = F, warning=F}
+truth.alpha=c(truth.YesYes[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesYes.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot YesYes}
+YesYes.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+*************************
+
+#Yes No data
+```{r YesNo data set-up, echo=FALSE}
+
+YesNo.dat=read.csv("E:/BRC/SimResults/Five_seq/YesNo_results.csv",  as.is = T)
+#YesNo.brlen = branch_length("E:/BRC/SimResults/YesNo/")
+YesNo.process.dat = process.dat(YesNo.dat)
+YesNo.melt.dat=melt(YesNo.process.dat[,c(1,31:35)])
+YesNo.sum.stat = box.sum.stats(YesNo.process.dat)
+YesNo.bias = YesNo.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+
+
+
+
+
+```{r set up truth table YesNo, echo=FALSE}
+
+truth.YesNo = matrix(c(1,1,1,0.1,0.5,7,0.333,0.333,0.3337000000000001,0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesNo)= c(" True Rates", "True Weights")
+rownames(truth.YesNo) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesNo, echo = FALSE}
+true.omegas.rates = c(truth.YesNo[4,1],truth.YesNo[4,1],truth.YesNo[5,1],truth.YesNo[5,1],truth.YesNo[6,1],truth.YesNo[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesNo.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesNo.dat$BUSTED.omega1.prop, YesNo.dat$BUSTED.SRV.omega1.prop,YesNo.dat$BUSTED.omega2.prop,YesNo.dat$BUSTED.SRV.omega2.prop,YesNo.dat$BUSTED.omega3.prop,YesNo.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesNo[4,2],truth.YesNo[4,2],truth.YesNo[5,2],truth.YesNo[5,2], truth.YesNo[6,2], truth.YesNo[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesNo.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesNo[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesNo.process.dat$SRV.alpha1.prop,YesNo.process.dat$SRV.alpha2.prop,YesNo.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesNo[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesNo.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesNo, echo = F, warning=F}
+truth.alpha=c(truth.YesNo[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesNo.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot YesNo}
+YesNo.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+**********************************************
+
+#Combining the simulation results
+
+```{r combine into data frame, echo=FALSE}
+  all.dat =bind_rows(NoNo.dat.no.outs,YesNo.process.dat,YesYes.process.dat,NoYes.process.dat)
+```
+
+```{r p plot of all, echo = FALSE}
+all.dat %>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+```{r}
+all.dat %>% group_by(p.cat,p.srv.cat)%>% select(contains("true"))%>% melt() %>% ggplot(aes(x = variable, y = value))+geom_boxplot(aes(color=interaction(p.cat,p.srv.cat)))+coord_flip(ylim = c(0,10))
+```
+
+```{r}
+all.dat %>% group_by(p.cat,p.srv.cat)%>% select(matches("*omega\\d.MLE"))%>% melt() %>% ggplot(aes(value))+geom_histogram(aes(fill=interaction(p.cat,p.srv.cat)))+ facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+
+
+
+
+
+********************************************
+#6,000 Codons
+
+These simulations where done with 6,000 codons and five sequences. I meant to do 5000 codons but oops.
+
+##No Selection, No SRV
+For this simulation, there is no selection and no SRV present.
+
+```{r NoNo_6000 data set-up, include=FALSE}
+
+NoNo_6000.dat=read.csv("E:/BRC/SimResults/Five_seq/NoNo_6000_results.csv",  as.is = T)
+#NoNo_6000.brlen = branch_length("E:/BRC/SimResults/NoNo_6000/")
+NoNo_6000.process.dat = process.dat(NoNo_6000.dat)
+NoNo_6000.melt.dat=melt(NoNo_6000.process.dat[,c(1,31:35)])
+NoNo_6000.sum.stat = box.sum.stats(NoNo_6000.process.dat)
+NoNo_6000.bias = NoNo_6000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r remove outliers NoNo_6000, echo = FALSE}
+MLE.NoNo_6000 = NoNo_6000.process.dat %>% select(contains("MLE"))
+
+#if there are no outliers this does funky shit
+#NoNo_6000.process.dat =NoNo_6000.process.dat[-unlist(apply(MLE.NoNo_6000, 2, FUN = function(col) which(col >9999))),]
+```
+
+```{r set up truth table NoNo_6000, echo=FALSE}
+
+truth.NoNo_6000 = matrix(c(1,1,1,
+                           0.1,0.5,1,
+                           0.333,0.333,0.3337000000000001,
+                           0.5,0.25,0.25),
+                         nrow = 6, ncol= 2)
+colnames(truth.NoNo_6000)= c(" True Rates", "True Weights")
+rownames(truth.NoNo_6000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+```{r summary stats table NoNo_6000, echo = FALSE}
+true.omegas.rates = c(truth.NoNo_6000[4,1],truth.NoNo_6000[4,1],truth.NoNo_6000[5,1],truth.NoNo_6000[5,1],truth.NoNo_6000[6,1],truth.NoNo_6000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoNo_6000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoNo_6000.dat$BUSTED.omega1.prop, NoNo_6000.dat$BUSTED.SRV.omega1.prop,NoNo_6000.dat$BUSTED.omega2.prop,NoNo_6000.dat$BUSTED.SRV.omega2.prop,NoNo_6000.dat$BUSTED.omega3.prop,NoNo_6000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoNo_6000[4,2],truth.NoNo_6000[4,2],truth.NoNo_6000[5,2],truth.NoNo_6000[5,2], truth.NoNo_6000[6,2], truth.NoNo_6000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoNo_6000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoNo_6000[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoNo_6000.process.dat$SRV.alpha1.prop,NoNo_6000.process.dat$SRV.alpha2.prop,NoNo_6000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoNo_6000[1:3,2])
+
+sum.table.NoNo_6000 = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoNo_6000,"latex", caption = "Summary Table for No Selection, No SRV")`
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "Omega Rate distribution for No selection and No SRV for 6000 codons"}
+
+q = cbind("Truth"=as.numeric(sum.table.NoNo_6000[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table.NoNo_6000[1:6,3])
+NoNo_6000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red")
+
+```
+
+
+
+```{r histograms NoNo_6000, echo=F, message=FALSE, warning=F, fig.cap="Alpha rate distribution for no selection, no SVR for 6000 codons"}
+truth.alpha=c(truth.NoNo_6000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoNo_6000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+
+
+```{r p plot NoNo_6000, message=FALSE, warning=FALSE, fig.cap="P value plot for no selection, no SRV for 6000 codons. Red lines are P = 0.05. Points below this line show significant evidence of selection somewhere in the replicate"}
+NoNo_6000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+
+##No Yes
+Simulation with no selection and with a large amount of SRV.
+```{r NoYes_6000_6000 data set-up, include=FALSE}
+
+NoYes_6000.dat=read.csv("E:/BRC/SimResults/Five_seq/NoYes_6000_results.csv",  as.is = T)
+#NoYes_6000.brlen = branch_length("E:/BRC/SimResults/NoYes_6000/")
+NoYes_6000.process.dat = process.dat(NoYes_6000.dat)
+NoYes_6000.melt.dat=melt(NoYes_6000.process.dat[,c(1,31:35)])
+NoYes_6000.sum.stat = box.sum.stats(NoYes_6000.process.dat)
+NoYes_6000.bias = NoYes_6000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r remove outliers NoYes_6000, include=FALSE}
+MLE.NoYes_6000 = NoYes_6000.process.dat %>% select(contains("MLE"))
+
+#NoYes_6000.process.dat =NoYes_6000.process.dat[-unlist(apply(MLE.NoYes_6000, 2, FUN = function(col) which(col >9999))),]
+```
+
+
+
+```{r set up truth table NoYes_6000, include=FALSE}
+
+truth.NoYes_6000 = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,
+                            0.1,0.5,1,
+                            0.5,0.4,0.09999999999999998,
+                            0.5,0.25,0.25),nrow = 6, ncol= 2)
+colnames(truth.NoYes_6000)= c(" True Rates", "True Weights")
+rownames(truth.NoYes_6000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+```{r summary stats table NoYes_6000, include=FALSE}
+true.omegas.rates = c(truth.NoYes_6000[4,1],truth.NoYes_6000[4,1],truth.NoYes_6000[5,1],truth.NoYes_6000[5,1],truth.NoYes_6000[6,1],truth.NoYes_6000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoYes_6000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoYes_6000.dat$BUSTED.omega1.prop, NoYes_6000.dat$BUSTED.SRV.omega1.prop,NoYes_6000.dat$BUSTED.omega2.prop,NoYes_6000.dat$BUSTED.SRV.omega2.prop,NoYes_6000.dat$BUSTED.omega3.prop,NoYes_6000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoYes_6000[4,2],truth.NoYes_6000[4,2],truth.NoYes_6000[5,2],truth.NoYes_6000[5,2], truth.NoYes_6000[6,2], truth.NoYes_6000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoYes_6000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoYes_6000[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoYes_6000.process.dat$SRV.alpha1.prop,NoYes_6000.process.dat$SRV.alpha2.prop,NoYes_6000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoYes_6000[1:3,2])
+
+sum.table.NoYes_6000 = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoYes_6000,"latex", caption = "Summary table for No selection, yes SRV for 6000 codons")`
+
+
+```{r, echo = FALSE,message=FALSE, warning=FALSE, fig.cap= "Omega Rate distribution for No selection and Yes SRV for 6000 codons. Red vertical lines represent the true value of the rate set in the simulation."}
+
+q = cbind("Truth"=as.numeric(sum.table.NoYes_6000[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table.NoYes_6000[1:6,3])
+NoYes_6000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red")
+
+```
+
+
+```{r histograms NoYes_6000, echo=F, message=FALSE, warning=F, fig.cap="Alpha rate distribution for no selection and yes SRV for 6000 codons. Red vertical lines represent the true value of the rate set in the simulation."}
+truth.alpha=c(truth.NoYes_6000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoYes_6000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+
+```{r p plot NoYes_6000, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="p plot for no selection, yes SRV. Red lines represent  P = 0.05. Each point represents the p value returned by  BUSTED and BUSTED+SRV for one replicate. Values below the red line (P <= 0.05) are considered to have significant evidence of at least one site under positive selection according to the corresponding analysis."}
+NoYes_6000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+********************************
+
+##YesYes_6000 data
+
+```{r YesYes_6000 data set-up, include=FALSE}
+
+YesYes_6000.dat=read.csv("G:/BRC/SimResults/Five_seq/YesYes_6000_results.csv",  as.is = T)
+#YesYes_6000.brlen = branch_length("E:/BRC/SimResults/YesYes_6000/")
+YesYes_6000.process.dat = process.dat(YesYes_6000.dat)
+YesYes_6000.melt.dat=melt(YesYes_6000.process.dat[,c(1,31:35)])
+YesYes_6000.sum.stat = box.sum.stats(YesYes_6000.process.dat)
+YesYes_6000.bias = YesYes_6000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r set up truth table YesYes_6000, include=FALSE}
+
+truth.YesYes_6000 = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,0.1,0.5,3,0.5,0.4,0.09999999999999998,0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesYes_6000)= c(" True Rates", "True Weights")
+rownames(truth.YesYes_6000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesYes_6000, include=FALSE}
+true.omegas.rates = c(truth.YesYes_6000[4,1],truth.YesYes_6000[4,1],truth.YesYes_6000[5,1],truth.YesYes_6000[5,1],truth.YesYes_6000[6,1],truth.YesYes_6000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesYes_6000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesYes_6000.dat$BUSTED.omega1.prop, YesYes_6000.dat$BUSTED.SRV.omega1.prop,YesYes_6000.dat$BUSTED.omega2.prop,YesYes_6000.dat$BUSTED.SRV.omega2.prop,YesYes_6000.dat$BUSTED.omega3.prop,YesYes_6000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesYes_6000[4,2],truth.YesYes_6000[4,2],truth.YesYes_6000[5,2],truth.YesYes_6000[5,2], truth.YesYes_6000[6,2], truth.YesYes_6000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesYes_6000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesYes_6000[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesYes_6000.process.dat$SRV.alpha1.prop,YesYes_6000.process.dat$SRV.alpha2.prop,YesYes_6000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesYes_6000[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"latex", caption = "Summary table for Yes selection and Yes SRV.")`
+
+
+```{r, echo=FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesYes_6000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") 
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesYes_6000, echo = F, warning=F}
+truth.alpha=c(truth.YesYes_6000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesYes_6000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other.
+
+```{r p plot YesYes_6000, echo=FALSE, fig.cap="p plot for yes selection, yes SRV. Red lines represent  P = 0.05. Each point represents the p value returned by  BUSTED and BUSTED+SRV for one replicate. Values below the red line (P <= 0.05) are considered to have significant evidence of at least one site under positive selection according to the corresponding analysis."}
+
+YesYes_6000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+
+```
+
+*************************
+
+##Yes No data
+```{r YesNo_6000 data set-up, echo=FALSE}
+
+YesNo_6000.dat=read.csv("G:/BRC/SimResults/Five_seq/YesNo_6000_results.csv",  as.is = T)
+#YesNo_6000.brlen = branch_length("E:/BRC/SimResults/YesNo_6000/")
+YesNo_6000.process.dat = process.dat(YesNo_6000.dat)
+YesNo_6000.melt.dat=melt(YesNo_6000.process.dat[,c(1,31:35)])
+YesNo_6000.sum.stat = box.sum.stats(YesNo_6000.process.dat)
+YesNo_6000.bias = YesNo_6000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+```{r set up truth table YesNo_6000, echo=FALSE}
+
+truth.YesNo_6000 = matrix(c(1,1,1,0.1,0.5,3,0.333,0.333,0.3337000000000001,0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesNo_6000)= c(" True Rates", "True Weights")
+rownames(truth.YesNo_6000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesNo_6000, echo = FALSE}
+true.omegas.rates = c(truth.YesNo_6000[4,1],truth.YesNo_6000[4,1],truth.YesNo_6000[5,1],truth.YesNo_6000[5,1],truth.YesNo_6000[6,1],truth.YesNo_6000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesNo_6000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesNo_6000.dat$BUSTED.omega1.prop, YesNo_6000.dat$BUSTED.SRV.omega1.prop,YesNo_6000.dat$BUSTED.omega2.prop,YesNo_6000.dat$BUSTED.SRV.omega2.prop,YesNo_6000.dat$BUSTED.omega3.prop,YesNo_6000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesNo_6000[4,2],truth.YesNo_6000[4,2],truth.YesNo_6000[5,2],truth.YesNo_6000[5,2], truth.YesNo_6000[6,2], truth.YesNo_6000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesNo_6000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesNo_6000[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesNo_6000.process.dat$SRV.alpha1.prop,YesNo_6000.process.dat$SRV.alpha2.prop,YesNo_6000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesNo_6000[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate.
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesNo_6000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesNo_6000, echo = F, warning=F}
+truth.alpha=c(truth.YesNo_6000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesNo_6000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other.
+
+```{r p plot YesNo_6000, echo=FALSE, fig.cap="p plot for yes selection, no SRV. Red lines represent  P = 0.05. Each point represents the p value returned by  BUSTED and BUSTED+SRV for one replicate. Values below the red line (P <= 0.05) are considered to have significant evidence of at least one site under positive selection according to the corresponding analysis."}
+YesNo_6000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+**********************************************
+
+#1,000 Codons 
+
+These simulations where done with  1,000 codons and five sequences. I expect to see less power with these. 
+
+##No Selection, No SRV
+
+```{r NoNo_1000 data set-up, include=FALSE}
+
+NoNo_1000.dat=read.csv("G:/BRC/SimResults/Five_seq/NoNo_1000_results.csv",  as.is = T)
+#NoNo_1000.brlen = branch_length("G:/BRC/SimResults/NoNo_1000/")
+NoNo_1000.process.dat = process.dat(NoNo_1000.dat)
+NoNo_1000.melt.dat=melt(NoNo_1000.process.dat[,c(1,31:35)])
+NoNo_1000.sum.stat = box.sum.stats(NoNo_1000.process.dat)
+NoNo_1000.bias = NoNo_1000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r remove outliers NoNo_1000, message=FALSE, warning=FALSE, include=FALSE}
+MLE.NoNo_1000 = NoNo_1000.process.dat %>% select(contains("MLE")) 
+
+NoNo_1000.process.dat =NoNo_1000.process.dat[-unlist(apply(MLE.NoNo_1000, 2, FUN = function(col) which(col >9999))),]
+```
+
+
+
+```{r set up truth table NoNo_1000, echo=FALSE}
+
+truth.NoNo_1000 = matrix(c(1,1,1,
+                           0.1,0.5,1,
+                           0.333,0.333,0.3337000000000001,
+                           0.5,0.25,0.25),
+                         nrow = 6, ncol= 2)
+colnames(truth.NoNo_1000)= c(" True Rates", "True Weights")
+rownames(truth.NoNo_1000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table NoNo_1000, include=FALSE}
+true.omegas.rates = c(truth.NoNo_1000[4,1],truth.NoNo_1000[4,1],truth.NoNo_1000[5,1],truth.NoNo_1000[5,1],truth.NoNo_1000[6,1],truth.NoNo_1000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoNo_1000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoNo_1000.dat$BUSTED.omega1.prop, NoNo_1000.dat$BUSTED.SRV.omega1.prop,NoNo_1000.dat$BUSTED.omega2.prop,NoNo_1000.dat$BUSTED.SRV.omega2.prop,NoNo_1000.dat$BUSTED.omega3.prop,NoNo_1000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoNo_1000[4,2],truth.NoNo_1000[4,2],truth.NoNo_1000[5,2],truth.NoNo_1000[5,2], truth.NoNo_1000[6,2], truth.NoNo_1000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoNo_1000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoNo_1000[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoNo_1000.process.dat$SRV.alpha1.prop,NoNo_1000.process.dat$SRV.alpha2.prop,NoNo_1000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoNo_1000[1:3,2])
+
+sum.table.NoNo_1000 = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoNo_1000,"latex", caption = "")`
+
+
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table.NoNo_1000[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table.NoNo_1000[1:6,3])
+NoNo_1000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms NoNo_1000, echo = F, warning=F}
+truth.alpha=c(truth.NoNo_1000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoNo_1000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot NoNo_1000}
+NoNo_1000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red') + ggtitle("No Selection, No SRV, 1000 codons")
+```
+
+
+
+##No Yes
+Simulation with no selection and with a large amount of SRV.
+```{r NoYes_1000_1000 data set-up, echo=FALSE}
+
+NoYes_1000.dat=read.csv("G:/BRC/SimResults/Five_seq/NoYes_1000_results.csv",  as.is = T)
+#NoYes_1000.brlen = branch_length("G:/BRC/SimResults/NoYes_1000/")
+NoYes_1000.process.dat = process.dat(NoYes_1000.dat)
+NoYes_1000.melt.dat=melt(NoYes_1000.process.dat[,c(1,31:35)])
+NoYes_1000.sum.stat = box.sum.stats(NoYes_1000.process.dat)
+NoYes_1000.bias = NoYes_1000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r remove outliers NoYes_1000, echo = FALSE}
+MLE.NoYes_1000 = NoYes_1000.process.dat %>% select(contains("MLE"))
+
+NoYes_1000.process.dat =NoYes_1000.process.dat[-unlist(apply(MLE.NoYes_1000, 2, FUN = function(col) which(col >9999))),]
+```
+
+
+
+```{r set up truth table NoYes_1000, echo=FALSE}
+
+truth.NoYes_1000 = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,0.1,0.5,1,0.5,0.4,0.09999999999999998,0.5,0.25,0.25),nrow = 6, ncol= 2)
+colnames(truth.NoYes_1000)= c(" True Rates", "True Weights")
+rownames(truth.NoYes_1000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table NoYes_1000, echo = FALSE}
+true.omegas.rates = c(truth.NoYes_1000[4,1],truth.NoYes_1000[4,1],truth.NoYes_1000[5,1],truth.NoYes_1000[5,1],truth.NoYes_1000[6,1],truth.NoYes_1000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(NoYes_1000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( NoYes_1000.dat$BUSTED.omega1.prop, NoYes_1000.dat$BUSTED.SRV.omega1.prop,NoYes_1000.dat$BUSTED.omega2.prop,NoYes_1000.dat$BUSTED.SRV.omega2.prop,NoYes_1000.dat$BUSTED.omega3.prop,NoYes_1000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.NoYes_1000[4,2],truth.NoYes_1000[4,2],truth.NoYes_1000[5,2],truth.NoYes_1000[5,2], truth.NoYes_1000[6,2], truth.NoYes_1000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(NoYes_1000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.NoYes_1000[1:3,1])) %>% cbind("Estimates Weight"=cbind(NoYes_1000.process.dat$SRV.alpha1.prop,NoYes_1000.process.dat$SRV.alpha2.prop,NoYes_1000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.NoYes_1000[1:3,2])
+
+sum.table.NoYes_1000 = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table.NoYes_1000,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate.
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table.NoYes_1000[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table.NoYes_1000[1:6,3])
+NoYes_1000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms NoYes_1000, echo = F, warning=F}
+truth.alpha=c(truth.NoYes_1000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(NoYes_1000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other.
+
+```{r p plot NoYes_1000}
+NoYes_1000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+
+
+
+********************************
+
+##YesYes_1000 data
+
+```{r YesYes_1000 data set-up, echo=FALSE}
+
+YesYes_1000.dat=read.csv("G:/BRC/SimResults/Five_seq/YesYes_1000_results.csv",  as.is = T)
+#YesYes_1000.brlen = branch_length("G:/BRC/SimResults/YesYes_1000/")
+YesYes_1000.process.dat = process.dat(YesYes_1000.dat)
+YesYes_1000.melt.dat=melt(YesYes_1000.process.dat[,c(1,31:35)])
+YesYes_1000.sum.stat = box.sum.stats(YesYes_1000.process.dat)
+YesYes_1000.bias = YesYes_1000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+```{r set up truth table YesYes_1000, echo=FALSE}
+
+truth.YesYes_1000 = matrix(c(0.1333333333333334,0.6666666666666667,6.666666666666668,
+                             0.1,0.5,3,
+                             0.5,0.4,0.09999999999999998,
+                             0.5,0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesYes_1000)= c(" True Rates", "True Weights")
+rownames(truth.YesYes_1000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesYes_1000, echo = FALSE}
+true.omegas.rates = c(truth.YesYes_1000[4,1],truth.YesYes_1000[4,1],truth.YesYes_1000[5,1],truth.YesYes_1000[5,1],truth.YesYes_1000[6,1],truth.YesYes_1000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesYes_1000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesYes_1000.dat$BUSTED.omega1.prop, YesYes_1000.dat$BUSTED.SRV.omega1.prop,YesYes_1000.dat$BUSTED.omega2.prop,YesYes_1000.dat$BUSTED.SRV.omega2.prop,YesYes_1000.dat$BUSTED.omega3.prop,YesYes_1000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesYes_1000[4,2],truth.YesYes_1000[4,2],truth.YesYes_1000[5,2],truth.YesYes_1000[5,2], truth.YesYes_1000[6,2], truth.YesYes_1000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesYes_1000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesYes_1000[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesYes_1000.process.dat$SRV.alpha1.prop,YesYes_1000.process.dat$SRV.alpha2.prop,YesYes_1000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesYes_1000[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesYes_1000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesYes_1000, echo = F, warning=F}
+truth.alpha=c(truth.YesYes_1000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesYes_1000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot YesYes_1000}
+YesYes_1000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+*************************
+
+##Yes No data
+```{r YesNo_1000 data set-up, echo=FALSE}
+
+YesNo_1000.dat=read.csv("G:/BRC/SimResults/Five_seq/YesNo_1000_results.csv",  as.is = T)
+#YesNo_1000.brlen = branch_length("G:/BRC/SimResults/YesNo_1000/")
+YesNo_1000.process.dat = process.dat(YesNo_1000.dat)
+YesNo_1000.melt.dat=melt(YesNo_1000.process.dat[,c(1,31:35)])
+YesNo_1000.sum.stat = box.sum.stats(YesNo_1000.process.dat)
+YesNo_1000.bias = YesNo_1000.dat[,c(1,17:18,21:22,4:5)]
+
+```
+
+
+```{r set up truth table YesNo_1000, echo=FALSE}
+
+truth.YesNo_1000 = matrix(c(1,1,1,
+                            0.1,0.5,3,0.333,
+                            0.333,0.3337000000000001,0.5,
+                            0.3,0.2),nrow = 6, ncol= 2)
+colnames(truth.YesNo_1000)= c(" True Rates", "True Weights")
+rownames(truth.YesNo_1000) = c("alpha 1","alpha 2","alpha 3", "omega 1", "omega 2", "omega 3")
+```
+
+
+
+```{r summary stats table YesNo_1000, echo = FALSE}
+true.omegas.rates = c(truth.YesNo_1000[4,1],truth.YesNo_1000[4,1],truth.YesNo_1000[5,1],truth.YesNo_1000[5,1],truth.YesNo_1000[6,1],truth.YesNo_1000[6,1])
+
+sum.table.omegas =gen.summary.o.tabs(YesNo_1000.process.dat)[,3:4] %>% cbind("True Rates" = true.omegas.rates) %>% cbind("Estimated Weight" = cbind( YesNo_1000.dat$BUSTED.omega1.prop, YesNo_1000.dat$BUSTED.SRV.omega1.prop,YesNo_1000.dat$BUSTED.omega2.prop,YesNo_1000.dat$BUSTED.SRV.omega2.prop,YesNo_1000.dat$BUSTED.omega3.prop,YesNo_1000.dat$BUSTED.SRV.omega3.prop)  %>% apply(2,mean)) %>% cbind("True Weights" =c(truth.YesNo_1000[4,2],truth.YesNo_1000[4,2],truth.YesNo_1000[5,2],truth.YesNo_1000[5,2], truth.YesNo_1000[6,2], truth.YesNo_1000[6,2]))
+
+sum.table.alphas = gen.summary.a.tabs(YesNo_1000.process.dat)[,3:4] %>% cbind("True Rates"=c(truth.YesNo_1000[1:3,1])) %>% cbind("Estimates Weight"=cbind(YesNo_1000.process.dat$SRV.alpha1.prop,YesNo_1000.process.dat$SRV.alpha2.prop,YesNo_1000.process.dat$SRV.alpha3.prop) %>% apply(2,mean)) %>% cbind("True Weights" = truth.YesNo_1000[1:3,2])
+
+sum.table = rbind(sum.table.omegas,sum.table.alphas)
+```
+
+`r kable(sum.table,"markdown")`
+
+Here we can see that the mean estimated omega3 value `r sum.table.omegas[5,2]` which is wildly over the true value of 1. This is what we'd expect to see as BUSTED does not account for synonymous rate variation and we simulated with a SRV and a high alpha 3 rate. 
+
+```{r, echo = FALSE}
+
+q = cbind("Truth"=as.numeric(sum.table[1:6,3]),variable=c("BUSTED.omega1.MLE","BUSTED.SRV.omega1.MLE","BUSTED.omega2.MLE","BUSTED.SRV.omega2.MLE","BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE")) %>% as.data.frame()
+q$Truth = as.numeric(sum.table[1:6,3])
+YesNo_1000.bias %>% melt() %>% ggplot(aes(value))+geom_histogram() +facet_wrap(~variable, scales = "free", ncol = 2)+ geom_vline(data = q,aes(xintercept = as.numeric(Truth)),color = "red") + ggtitle("Distribution of Omega R")
+
+```
+
+The histograms below show the distribution of the alpha rates
+
+```{r histograms YesNo_1000, echo = F, warning=F}
+truth.alpha=c(truth.YesNo_1000[1:3,1])
+c = cbind(as.numeric(truth.alpha),variable=c("true.alpha1","true.alpha2","true.alpha3")) %>% as.data.frame()
+ggplot(YesNo_1000.melt.dat, aes(value))+geom_histogram()+facet_wrap(~variable, scales = "free_x") + geom_vline(data = c, aes(xintercept = truth.alpha), color = "red")
+
+```
+
+A plot of the p values for BUSTED versus BUSTED-SRV. THis allows us to compare the results of the two analysis to each other. 
+
+```{r p plot YesNo_1000}
+YesNo_1000.process.dat%>% ggplot(aes(x= BUSTED.P,y=BUSTED.SRV.P))+geom_point()+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+****************************************
