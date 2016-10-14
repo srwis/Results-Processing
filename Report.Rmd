@@ -247,6 +247,401 @@ The values and weights of the $\omega$ rates and $\alpha$ rates varied based on 
 2. Varying $\omega_3$
 3. Varying $\alpha$ rates
 	 
-## 
+ For scenario 1, I wanted to see if the number of sites would effect the power of the the analyses. I also wanted to see if the analyses behaved as expected when the number of sites was abnormally large. By the law of large numbers, we know that as the number of sites increases, the estimated parameters should get closer and closer to the true values. 
+ 
+For scenario 2, I wanted to see how different values of $\omega_3$ would effect the power. I was also curious to see at what point the analyses started to detect positive selection. In theory, if there is one site with $\omega_3 \geq 1$ along at least one foreground branch, then both analyses should report that is there is significant evidence of selection, aka p $\leq$ 0.05. However, we know from the original BUSTED paper at lower values of $\omega_3$ the analyses have lower power. We expect BUSTED+SRV to behave similarly. 
+	 
+For scenario 3, I wanted to how BUSTED and BUSTED+SRV behaved with different amount of SRV present. One expectation I had here was the when less SRV was present, BUSTED would behave more as expected and return less false positive.
+
+##Varying Number of Sites
+
+For scenario 1, I varied the number of sites in each sequence for each gene alignment. Sites in this case are codons because we are using a codon model to detect selection. The other major difference is for the categories the included selection, the replicates with 10,000 sites have an $\omega_3 = 7$ whereas the other two have $\omega_3 = 3$. All the parameters for each simulation are listed in $Table  1$. All replicates included five sequences. 
+  
+```{r, include=FALSE}
+dir = "G:/BRC/SimResults/Five_seq" #sets directory to look thru
+csv = "G:/BRC/SimResults/setup_table.csv"
 
 
+#list = list.files(path = "G:/BRC/SimResults/Five_seq", recursive = T, pattern ="^([^.]+)$") #lists only files with out an extension
+
+
+simulation_inputs <- function(dir,csv){
+  require("stringr")
+  require("jsonlite")
+  require("dplyr")
+  list = list.files(path = dir, recursive = T, pattern ="^([^.]+)$")
+  #set up the empty data frame
+  names = c("Sites" ,"Cat", "Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate", "Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight",
+            "Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate","Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+  setup.tab = read.table(text = "",col.names = names)
+  #loop thru each file to get info in correct format
+  for(i in seq(from = 1, to= length(list))){
+       x=readLines(paste(dir,list[i], sep = "/"))
+       #making this a readable json
+      x1 = str_replace(x,":\\{", ":\\[")
+
+      x1[c(5:6,12:13)] = str_replace(x1[c(5:6,12:13)],"\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}", "\\[\\1\\]," )
+      
+      x1[c(7,14)] = str_replace(x1[c(7,14)],"\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}", "\\[\\1\\]" )
+      x1[c(8,15)] = str_replace(x1[c(8,15)], "\\}", "\\]")
+     r= fromJSON(x1)
+     omega_rates = r$`omega distribution`[,1]
+     names(omega_rates)= c("Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate")
+     omega_weights = r$`omega distribution`[,2]
+     names(omega_weights) = c("Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight")
+     
+     Alpha_rates = r$`alpha distribution`[,1]
+     names(Alpha_rates)= c("Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate")
+     Alpha_weights = r$`alpha distribution`[,2]
+     names(Alpha_weights) = c("Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+    
+     setup.tab[nrow(setup.tab)+1,] = c(r$sites,list[i], omega_rates,omega_weights,Alpha_rates,Alpha_weights)
+  }
+  setup.tab =select(setup.tab, Sites, Cat, Omega.1.Rate, Omega.1.Weight, Omega.2.Rate, Omega.2.Weight,Omega.3.Rate, Omega.3.Weight,
+                    Alpha.1.Rate, Alpha.1.Weight, Alpha.2.Rate, Alpha.2.Weight,Alpha.3.Rate, Alpha.3.Weight)
+  
+  #return(setup.tab)
+  write.csv(file = csv, x = setup.tab, row.names= F)
+}
+simulation_inputs(dir, csv)
+
+setup.tab = read.csv(csv, as.is = TRUE)
+
+
+#reorder columns
+setup.tab =select(setup.tab, Sites, Cat, Omega.1.Rate, Omega.1.Weight, Omega.2.Rate, Omega.2.Weight,Omega.3.Rate, Omega.3.Weight,
+       Alpha.1.Rate, Alpha.1.Weight, Alpha.2.Rate, Alpha.2.Weight,Alpha.3.Rate, Alpha.3.Weight)
+
+
+setup.tab$Cat = str_extract(setup.tab$Cat,"NoNo|YesYes|YesNo|NoYes") # make cats only YesYes, NoNo, etc
+
+
+
+setup.tab[,3:14] = setup.tab[,3:14]  %>%  unlist() %>% as.numeric() #change strings into numeric for rates and weights
+
+
+#make a table for only the varying sequence lengths
+seq.len.tab=setup.tab %>% filter(Omega.3.Rate==3|Omega.3.Rate==7|Omega.3.Rate==1) %>% filter(Alpha.3.Rate==1|Alpha.3.Rate>6.6)
+#input latex to format table and group by sites
+seq.len.tab = seq.len.tab %>% arrange(Sites)
+
+
+
+```
+
+```{r seq_len_tab, results = "asis", echo=FALSE}
+#print table
+seq.len.tab$Cat = seq.len.tab$Cat %>% str_replace_all(c("YesYes"="$Sel^+ SRV^+$",
+                                                                "YesNo"= "$Sel^+ SRV^-$",
+                                                                "NoNo"= "$Sel^- SRV^-$", 
+                                                                "NoYes" = "$Sel^- SRV^+$"))
+kable(seq.len.tab, caption = "Set up values for sequence length comparison")
+```
+
+Above you can see the true values of all the parameters used in the simulation. 
+
+```{r seq len data setup, include=FALSE}
+YesYes_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/YesYes_results.csv", as.is =T)
+YesYes_1000_3 = read.csv("G:/BRC/SimREsults/Five_seq/YesYes_1000_results.csv", as.is = T)
+YesYes_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesYes_6000_results.csv", as.is = T)
+
+YesNo_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_results.csv", as.is = T)
+YesNo_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_6000_results.csv", as.is = T)
+YesNo_1000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_1000_results.csv", as.is = T)
+
+NoYes_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/NoYes_results.csv")
+NoYes_1000_3 = read.csv("G:/BRC/SimREsults/Five_seq/NoYes_1000_results.csv", as.is = T)
+NoYes_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoYes_6000_results.csv", as.is = T)
+
+NoNo_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_results.csv", as.is = T)
+NoNo_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_6000_results.csv", as.is = T)
+NoNo_1000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_1000_results.csv", as.is = T)
+
+
+YesYes_all.dat = mutate(bind_rows(YesYes_10000_7,YesYes_1000_3, YesYes_6000_3), cat = "YesYes")
+YesNo_all.dat = mutate(bind_rows(YesNo_6000_3,YesNo_10000_7, YesNo_1000_3), cat = "YesNo")
+NoNo_all.dat = mutate(bind_rows(NoNo_6000_3,NoNo_10000_7, NoNo_1000_3), cat = "NoNo")
+NoYes_all.dat = mutate(bind_rows(NoYes_6000_3,NoYes_10000_7, NoYes_1000_3), cat = "NoYes")
+
+
+
+```
+
+```{r seq len plots, echo=FALSE, fig.cap="Replicates with selection and with SRV present. Colored by number of sites. Red lines represent p = 0.05. Replicates with p<= 0.05 are considered to show evidence of positive selection."}
+Seq_Len_all.dat = bind_rows(YesYes_all.dat,YesNo_all.dat, NoYes_all.dat, NoNo_all.dat)
+
+Seq_Len_all.dat$cat = Seq_Len_all.dat$cat %>% str_replace_all(c("YesYes"="'Sel'^'+'* 'SRV'^'+'",
+                                                                "YesNo"= "'Sel'^'+' * 'SRV'^'-'",
+                                                                "NoNo"= "'Sel'^'-'*'SRV'^'-'", 
+                                                                "NoYes" = "'Sel'^'-'*'SRV'^'+'"))
+
+Seq_Len_all.dat %>% ggplot(aes(BUSTED.P,BUSTED.SRV.P))+geom_point(aes(color = factor(Sites)))+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')+ facet_grid(cat ~Sites, labeller = label_parsed)
+```
+
+
+As the number of sites, decreases, so does the average power. BUSTED has a lower average power for each sequence length. However, this is not due to the changing sequence length but a manifestation of BUSTED's issues dealing with SRV. From figure 1, it is obvious that when SRV is present BUSTED will detect positive selection even if there is none (NoYes category). It is this mass reporting of false positives that causes the average power of BUSTED to be consistently lower than BUSTED+SRV for the varying number of sites.
+
+```{r, include = FALSE}
+#set up data set 
+Seq_Len_all.dat = bind_rows(YesYes_all.dat,YesNo_all.dat, NoYes_all.dat, NoNo_all.dat)
+
+num_site = c(1000,6000, 10000)
+basic.seq = Seq_Len_all.dat %>% group_by(Sites, cat) %>% summarise(num_reps =n())
+
+#calculate power for those with positive selection
+YesYes_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesYes_correct)[3] = "SRV"
+
+YesNo_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesNo_correct)[3] = "SRV"
+SRV_w_sel = rbind(YesNo_correct,YesYes_correct)
+
+YesYes_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesYes_correct_BUSTED )[3] = "BUSTED"
+
+YesNo_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesNo_correct_BUSTED )[3] = "BUSTED"
+
+BUSTED_w_sel = rbind(YesNo_correct_BUSTED,YesYes_correct_BUSTED)
+
+w_sel = full_join(BUSTED_w_sel, SRV_w_sel, by = c("Sites","cat"))
+
+
+w_sel 
+
+#calculate power for those categories without 
+
+NoYes_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoYes") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(NoYes_correct)[3] = "SRV"
+
+NoNo_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoNo") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(NoNo_correct)[3] = "SRV"
+SRV_wo_sel = rbind(NoNo_correct,NoYes_correct)
+
+NoYes_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoYes") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(NoYes_correct_BUSTED )[3] = "BUSTED"
+
+NoNo_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoNo") %>% filter(BUSTED.P<0.05) %>% tally()
+colnames(NoNo_correct_BUSTED )[3] = "BUSTED"
+
+BUSTED_wo_sel = rbind(NoNo_correct_BUSTED,NoYes_correct_BUSTED)
+
+no_sel = full_join(BUSTED_wo_sel, SRV_wo_sel, by = c("Sites","cat"))
+
+
+
+no_sel 
+
+all = rbind(no_sel,w_sel) %>% full_join(.,basic.seq, by = c("Sites","cat")) %>% replace(., is.na(.), 0) %>% arrange(cat)
+all$BUSTED= all$BUSTED/all$num_reps
+all$SRV = all$SRV/all$num_reps
+
+
+```
+
+```{r power as number sites, echo=FALSE, warning=FALSE,fig.cap= "Power of both analyses as the number of sites changes. Lines are loess smoothed."}
+
+all$cat = all$cat %>% str_replace_all(c("YesYes"="'Sel'^'+'* 'SRV'^'+'",
+                                                                "YesNo"= "'Sel'^'+' * 'SRV'^'-'",
+                                                                "NoNo"= "'Sel'^'-'*'SRV'^'-'", 
+                                                                "NoYes" = "'Sel'^'-'*'SRV'^'+'"))
+temp = all %>% group_by(Sites) %>%  melt(id.vars= c("Sites", "cat", "num_reps"))
+
+a =interaction(temp$cat,paste("'",temp$variable,"'",sep =""), sep = " * ")
+
+all %>% group_by(Sites) %>%  melt(id.vars= c("Sites", "cat", "num_reps")) %>% ggplot(aes(x = Sites, y = value, color = interaction(cat,variable)))+ geom_point() + geom_smooth() + scale_color_discrete(labels=parse(text = levels(a) )) + labs(y = "Power", color = "Analysis")  
+
+```
+
+```{r, table for power of sites,echo=FALSE, warning=FALSE}
+all = rbind(no_sel,w_sel) %>% full_join(.,basic.seq, by = c("Sites","cat")) %>% replace(., is.na(.), 0) %>% arrange(cat)
+all$BUSTED= all$BUSTED/all$num_reps
+all$SRV = all$SRV/all$num_reps
+all$cat = all$cat %>% str_replace_all(c("YesYes"="$Sel^+ SRV^+$",
+                                                                "YesNo"= "$Sel^+ SRV^-$",
+                                                                "NoNo"= "$Sel^- SRV^-$", 
+                                                                "NoYes" = "$Sel^- SRV^+$"))
+kable(all)
+ 
+```
+
+
+##Varying $\omega_3$ Rate
+
+For scenario 2, I varied the $\omega_3$ rate from 1.1 to 3.0 for both the YesNo and YesYes categories. As can be seen in table 2, the major difference between these two categories is the $\alpha_3$ rate and therefore the presence of SRV. The goal of this scenario was to examine how varying the $\omega_3$ rate impacted the power of both analyses.
+
+```{r, include=FALSE}
+
+ Codons_true_val = read.csv("G:/BRC/SimResults/1000_Codons_true_values.csv", as.is = TRUE) # read in that csv
+ 
+ Codons_true_val = Codons_true_val[,-1] %>% filter(Omega.3.Rate>= 1.1) %>% filter(Alpha.3.Rate == 1 | Alpha.3.Rate > 6.6)  # limit it to one where O3 >1 to get the varied o3 files only
+
+ 
+Codons_true_val$Cat= str_extract(Codons_true_val$Cat,"NoNo|YesYes|YesNo|NoYes") # rename categories should get only YesNo and YesYes
+
+ true_alphas = Codons_true_val
+
+```
+
+```{r, include=FALSE}
+
+vary.omega.setup.xtab = xtable(Codons_true_val, caption = "Simulation set up parameters for varying the $\\omega_3$ rates")
+
+
+```
+
+```{r, vary_omegas&CV_table, echo = FALSE}
+
+pwr_tab <- function(csv_data, csv_truth) {
+  A1.dat = read.csv(csv_data, as.is = TRUE)
+  A1.dat = str_extract(A1.dat$FILE, "_[0-9]_[0-9]*") %>% sub("_", "", x = .)%>% str_replace("_", ".") %>% as.numeric() %>% mutate(A1.dat, True.Rate.Omega.3 = .)
+  
+  A1.True.vals = read.csv(csv_truth, as.is = TRUE)
+  A1.basic = A1.dat %>% group_by(True.Rate.Omega.3) %>% summarise(num_reps = n())
+  
+  A1.BUSTED = A1.dat %>% group_by(True.Rate.Omega.3) %>% filter(BUSTED.P <
+  0.05) %>% tally()
+  colnames(A1.BUSTED)[2] = "BUSTED_PWR"
+  
+  A1.SRV = A1.dat %>%  group_by(True.Rate.Omega.3) %>% filter(BUSTED.SRV.P <
+  0.05) %>%  tally()
+  colnames(A1.SRV)[2] = "SRV_PWR"
+  
+  A1.pwr.tab = full_join(A1.BUSTED, A1.SRV, by = "True.Rate.Omega.3") %>% full_join(., A1.basic, by = "True.Rate.Omega.3") %>%
+  mutate(True.SRV.CV = A1.True.vals$CV.SRV[1])
+  
+  A1.means = A1.dat %>% group_by(True.Rate.Omega.3) %>%   summarise(
+  "$BUSTED \\omega_3$ MLE" = mean(BUSTED.omega3.MLE),
+  "SRV $\\omega_3$ MLE" = mean(BUSTED.SRV.omega3.MLE),
+  "Mean CV" = mean(CV.SRV)
+  )
+  A1.pwr.tab = full_join(A1.pwr.tab, A1.means, by = "True.Rate.Omega.3")
+  A1.pwr.tab = replace(A1.pwr.tab, is.na(A1.pwr.tab), 0)
+  A1.pwr.tab$BUSTED_PWR = A1.pwr.tab$BUSTED_PWR / A1.pwr.tab$num_reps
+  A1.pwr.tab$SRV_PWR = A1.pwr.tab$SRV_PWR / A1.pwr.tab$num_reps
+  return(A1.pwr.tab)
+  }
+  
+  A1.dat = pwr_tab(
+  "G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO.csv",
+  "G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv"
+  )
+  
+  A2.dat = pwr_tab(
+  "G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO.csv",
+  "G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO_Truth.csv"
+  )
+  
+  A6.dat = pwr_tab(
+  "G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv",
+  "G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv"
+  )
+  
+  lowCV.dat = pwr_tab("G:/BRC/SimResults/Five_seq/YesYes_lowCV_VaryO.csv",
+                      "G:/BRC/SimResults/Five_seq/YesYes_lowCV_VaryO_Truth.csv")
+  
+  all.pwr.tab = bind_rows(A6.dat, A2.dat, A1.dat, lowCV.dat)
+  
+  all.pwr.tab = all.pwr.tab %>% arrange(True.Rate.Omega.3) %>% select(
+  True.Rate.Omega.3,
+  `$BUSTED \\omega_3$ MLE`,
+  `SRV $\\omega_3$ MLE`,
+  True.SRV.CV,
+  `Mean CV`,
+  BUSTED_PWR,
+  SRV_PWR
+  )
+  
+  
+  
+  kable(
+  all.pwr.tab %>% filter( True.Rate.Omega.3 == 1 |
+  True.Rate.Omega.3 == 1.1 |
+  True.Rate.Omega.3 == 1.5 | True.Rate.Omega.3 == 2 |
+  True.Rate.Omega.3 == 2.5 |
+  True.Rate.Omega.3 == 2.9
+  )
+  )
+  all.pwr.tab %>% select(one_of(
+  c("True.Rate.Omega.3", "True.SRV.CV", "BUSTED_PWR", "SRV_PWR")
+  )) %>% melt(id.vars = c("True.Rate.Omega.3", "True.SRV.CV")) %>% ggplot(aes(
+  x = True.Rate.Omega.3,
+  y = value,
+  color = interaction(round(True.SRV.CV,3), variable, sep = " ")
+  )) +
+  geom_point() + geom_smooth() + labs(x = "Omega 3 Rate", y = "Power", color = "CV and Analysis")
+
+```
+
+```{r, vary_omegas, echo=FALSE}
+
+YesYes.A6.dat = pwr_tab("G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv",
+                                 "G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv")
+YesNo.A6.dat = pwr_tab("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv",
+                       "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv" )
+#add categories
+
+YesYes.A6.dat = YesYes.A6.dat %>% mutate(Cat = "$Sel^+ SRV^+$")
+
+YesNo.A6.dat = YesNo.A6.dat %>% mutate(Cat = "$Sel^+ SRV^-$")
+
+all.pwr.tab = bind_rows(YesYes.A6.dat,YesNo.A6.dat)
+
+all.pwr.tab = all.pwr.tab %>% arrange(True.Rate.Omega.3) %>% select(Cat,True.Rate.Omega.3,`$BUSTED \\omega_3$ MLE`, `SRV $\\omega_3$ MLE`, True.SRV.CV, `Mean CV`, BUSTED_PWR,SRV_PWR)
+
+
+kable(all.pwr.tab %>% filter(True.Rate.Omega.3 == 1.1|True.Rate.Omega.3==1.5 | True.Rate.Omega.3 == 2 |
+                               True.Rate.Omega.3 ==2.5 | True.Rate.Omega.3 == 2.9 ))
+
+
+labs = c("'Sel'^'+'* 'SRV'^'+'*'BUSTED'",
+         "'Sel'^'+' * 'SRV'^'-' * 'BUSTED'",
+         "'Sel'^'+'* 'SRV'^'+'*'SRV'",
+         "'Sel'^'+' * 'SRV'^'-' * 'SRV'")
+
+
+  
+all.pwr.tab %>% select(one_of(
+  c("True.Rate.Omega.3", "True.SRV.CV", "BUSTED_PWR", "SRV_PWR", "Cat")
+  )) %>% melt(id.vars = c("True.Rate.Omega.3", "True.SRV.CV", "Cat")) %>% ggplot(aes(
+  x = True.Rate.Omega.3,
+  y = value,
+  color = interaction(Cat, variable)
+  )) +
+  geom_point() + geom_smooth() + scale_color_discrete(labels= parse(text= labs))+ labs(x = "Omega 3 Rate", y = "Power", color = "Cat and Analysis")
+
+```
+
+
+```{r, varying_alpha}
+NoYes.O2.dat =pwr_tab(
+"G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv",
+"G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv")
+
+YesYes.O2.dat = pwr_tab(
+  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2.csv",
+  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2_Truth.csv"
+)
+YesYes.O2.dat = YesYes.O2.dat %>% mutate(Cat = "$Sel^+ SRV^+$")
+
+NoYes.O2.dat = NoYes.O2.dat %>% mutate(Cat = "$Sel^- SRV^+$")
+
+var.alpha.pwr = bind_rows(NoYes.O2.dat, YesYes.O2.dat)
+
+var.alpha.pwr = var.alpha.pwr %>% arrange(True.Rate.Omega.3) %>% select(Cat,True.Rate.Omega.3,`$BUSTED \\omega_3$ MLE`, `SRV $\\omega_3$ MLE`, True.SRV.CV, `Mean CV`, BUSTED_PWR,SRV_PWR)
+
+
+kable(var.alpha.pwr %>% filter(True.Rate.Omega.3 == 1.1|True.Rate.Omega.3==1.5 | True.Rate.Omega.3 == 2 |
+                               True.Rate.Omega.3 ==2.5 | True.Rate.Omega.3 == 2.9 ))
+
+
+```
+
+
+
+
+
+
+
+
+	 

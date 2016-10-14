@@ -5,13 +5,13 @@
 
 #try to loop thru jsons to get info needed
 
-cur.dir = "E:/Selectome/jsons/jsons/"
+cur.dir = "G:/Selectome/jsons/jsons/"
 csv ="E:/BRC/SimResults/test1/test1_results.csv"
 install.packages("jsonlite")
 
 compile <- function(cur.dir,csv){
   jsons <- list.files(path = cur.dir,
-                      pattern = '*.json')
+                      pattern = '*.json', recursive = TRUE)
   
   #create empty data.frame with variable names
   names = c("FILE", "BUSTED.LR", "BUSTED.SRV.LR", "BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE", "BUSTED.omega3.prop",
@@ -119,99 +119,103 @@ compile <- function(cur.dir,csv){
 compile("E:/BRC/SimResults/test1/", "E:/BRC/SimResults/test1/test1_results.csv")
 compile("E:/BRC/SimResults/test2/jsons/","E:/BRC/SimResults/test2/test2_results.csv")
 compile("E:/BRC/SimResults/test2/jsons/", "E:/BRC/SimResults/test3/test3_results.csv")
-compile("E:/BRC/SimResults/noSRV/","E:/BRC/SimResults/noSRV/noSRV_results.csv")
-compile("E:/BRC/SimResults/highOlowA/","E:/BRC/SimResults/highOlowA/highOlowA_results.csv")
-compile("E:/Selectome/jsons/","E:/Selectome/Selectome_results.csv")
-compile("E:/BRC/SimResults/Five_seq/noSel_noSRV/", "E:/BRC/SimResults/Five_seq/NoNo_results.csv")
-compile("E:/BRC/SimResults/Five_seq/noSel_yesSRV/", "E:/BRC/SimResults/Five_seq/NoYes_results.csv")
+compile("G:/BRC/SimResults/noSRV/","G:/BRC/SimResults/noSRV/noSRV_results.csv")
+compile("G:/BRC/SimResults/highOlowA/","G:/BRC/SimResults/highOlowA/highOlowA_results.csv")
+compile("G:/Selectome/jsons/","G:/Selectome/Selectome_results.csv")
+compile("G:/BRC/SimResults/Five_seq/noSel_noSRV/", "G:/BRC/SimResults/Five_seq/NoNo_results.csv")
+compile("G:/BRC/SimResults/Five_seq/noSel_yesSRV/", "G:/BRC/SimResults/Five_seq/NoYes_results.csv")
 
 #1000 Codons
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/noSel_noSRV/", "E:/BRC/SimResults/Five_seq/NoNo_1000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/", "E:/BRC/SimResults/Five_seq/NoYes_1000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/", "E:/BRC/SimResults/Five_seq/YesNo_1000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/", "E:/BRC/SimResults/Five_seq/YesYes_1000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_1/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_2/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_3/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_4/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_5/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_6/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_7/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_8/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_9/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_9_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_noSRV/", "G:/BRC/SimResults/Five_seq/NoNo_1000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/", "G:/BRC/SimResults/Five_seq/NoYes_1000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/", "G:/BRC/SimResults/Five_seq/YesNo_1000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/", "G:/BRC/SimResults/Five_seq/YesYes_1000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_1/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_2/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_3/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_4/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_4_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_5/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_6/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_6_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_7/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_7_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_8/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_8_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_1_9/", "G:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_9_results.csv")
 
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_1/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_2/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_3/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_4/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_5/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_6/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_7/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_8/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/O3_2_9/", "E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_9_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_1/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_2/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_3/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_4/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_4_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_5/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_6/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_6_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_7/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_7_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_8/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_8_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_9/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_9_results.csv")
 
-
-
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_1/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_2/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_3/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_4/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_5/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_6/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_7/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_8/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_1_9/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_9_results.csv")
-
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_1/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_2/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_3/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_4/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_5/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_6/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_7/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_8/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_9/", "E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_9_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_1/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_2/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_3/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_4/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_4_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_5/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_6/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_6_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_7/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_7_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_8/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_8_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/O3_2_9/", "G:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_9_results.csv")
 
 
 
 
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_1/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_2/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_3/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_4/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_5/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_6/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_7/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_8/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_9/", "E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_9_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_1/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_2/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_3/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_4/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_4_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_5/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_6/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_6_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_7/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_7_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_8/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_8_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/A3_1_9/", "G:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_9_results.csv")
 
 
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_1/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_1_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_2/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_3/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_3_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_4/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_4_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_5/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_6/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_6_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_7/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_7_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_8/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_8_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_9/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_9_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_2/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_2_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_2_5/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_2_5_results.csv")
-compile("E:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_3/", "E:/BRC/SimResults/Five_seq/NoYes_1000_A3_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_1/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_1_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_2/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_3/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_3_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_4/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_4_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_5/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_6/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_6_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_7/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_7_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_8/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_8_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_1_9/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_1_9_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_2/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_2_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_2_5/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_2_5_results.csv")
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/NoSel_YesSRV/A3_3/", "G:/BRC/SimResults/Five_seq/NoYes_1000_A3_3_results.csv")
 
 
 #6000 Codons
-compile("E:/BRC/SimResults/Five_seq/5000_Codons/noSel_noSRV/", "E:/BRC/SimResults/Five_seq/NoNo_6000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/5000_Codons/noSel_yesSRV/", "E:/BRC/SimResults/Five_seq/NoYes_6000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/5000_Codons/yesSel_noSRV/", "E:/BRC/SimResults/Five_seq/YesNo_6000_results.csv")
-compile("E:/BRC/SimResults/Five_seq/5000_Codons/yesSel_yesSRV/", "E:/BRC/SimResults/Five_seq/NoYes_6000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/5000_Codons/noSel_noSRV/", "G:/BRC/SimResults/Five_seq/NoNo_6000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/5000_Codons/noSel_yesSRV/", "G:/BRC/SimResults/Five_seq/NoYes_6000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/5000_Codons/yesSel_noSRV/", "G:/BRC/SimResults/Five_seq/YesNo_6000_results.csv")
+compile("G:/BRC/SimResults/Five_seq/5000_Codons/yesSel_yesSRV/", "G:/BRC/SimResults/Five_seq/NoYes_6000_results.csv")
 
 
+#Lower CV with varying Omega (Alpha 3 = 2)
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A2/", "G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO.csv")
+simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A2/", "G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO_Truth.csv")
 
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A1/", "G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO.csv")
+simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A1/","G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv" )
 
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/VaryO_A6/","G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv" )
 
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_lowCV/", "G:/BRC/SimResults/Five_seq/YesYes_lowCV_VaryO.csv")
+simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_lowCV/","G:/BRC/SimResults/Five_seq/YesYes_lowCV_VaryO_Truth.csv" )
 
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/VaryA_O2/", 
+        "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2.csv")
+simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/VaryA_O2/", 
+                  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2_Truth.csv")
+
+compile("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/", 
+        "G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv")
+simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/", 
+                  "G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv")
