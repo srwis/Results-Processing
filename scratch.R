@@ -9,17 +9,17 @@ library(xtable)
 
 
 
-A2.dat =  read.csv("G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO.csv", as.is = TRUE)
+A2.dat =  read.csv("E:/BRC/SimResults/Five_seq/YesYes_A2_VaryO.csv", as.is = TRUE)
 A2.dat =str_extract(dat$FILE, "2_[0-9]*") %>% str_replace("_",".") %>% as.numeric() %>% mutate(dat, True.Rate.Omega.3 = .)
 
-A2.True.vals = read.csv("G:/BRC/SimResults/Five_seq/YesYes_A2_VaryO_Truth.csv",as.is = T)
+A2.True.vals = read.csv("E:/BRC/SimResults/Five_seq/YesYes_A2_VaryO_Truth.csv",as.is = T)
 
 
 A6.basic = all_omega_vary %>% group_by(True.Rate.Omega.3, cat) %>% summarise(num_reps =n()) %>% filter(cat == "YesYes")
 A2.basic = dat %>% group_by(True.Rate.Omega.3) %>% summarise(num_reps = n())
 
-simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/VaryO_A6/","G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv" )
-A6.True.vals = read.csv("G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv", as.is = T)
+simulation_inputs("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/VaryO_A6/","E:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv" )
+A6.True.vals = read.csv("E:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv", as.is = T)
 
 #calculate power
 A6_correct_BUSTED = all_omega_vary %>% group_by(True.Rate.Omega.3, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.P<0.05) %>% tally() 
@@ -54,21 +54,21 @@ A2.pwr.tab = full_join(A2.pwr.tab, A2.means, by = "True.Rate.Omega.3")
 
 
 ####A1
-simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A1/","G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv" )
+simulation_inputs("E:/BRC/SimResults/Five_seq/1000_Codons/VaryO_A1/","E:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv" )
 
-A1.dat = read.csv("G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO.csv", as.is = TRUE)
+A1.dat = read.csv("E:/BRC/SimResults/Five_seq/YesYes_A1_VaryO.csv", as.is = TRUE)
 A1.dat = str_extract(A1.dat$FILE, "O3_[0-9]_[0-9]*") %>% str_replace("_",".") %>% as.numeric() %>% mutate(A1.dat, True.Rate.Omega.3 = .)
 
 
-O2.dat =read.csv("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv",as.is = TRUE)
+O2.dat =read.csv("E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv",as.is = TRUE)
 
-O2.True.vals = read.csv("G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
+O2.True.vals = read.csv("E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
 
 str_extract(A1.dat$FILE, "_[0-9]_[0-9]*") %>% sub("_", "", x = .)%>% str_replace("_",".") %>% as.numeric()
 
 
 
-A1.True.vals = read.csv("G:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv", as.is = TRUE)
+A1.True.vals = read.csv("E:/BRC/SimResults/Five_seq/YesYes_A1_VaryO_Truth.csv", as.is = TRUE)
 A1.basic = A1.dat %>% group_by(True.Rate.Omega.3) %>% summarise(num_reps = n())
 
 A1.BUSTED = A1.dat %>% group_by(True.Rate.Omega.3) %>% filter(BUSTED.P<0.05) %>% tally()
@@ -195,18 +195,18 @@ w_sel %>% melt(id.vars= c("True.Rate.Omega.3","cat","num_reps")) %>% ggplot(aes(
 dev.off()
 
 
-compile("G:/BRC/SimResults/Five_seq/1000_Codons/", "G:/BRC/SimResults/Five_seq/1000_Codons/BigOldData.csv")
+compile("E:/BRC/SimResults/Five_seq/1000_Codons/", "E:/BRC/SimResults/Five_seq/1000_Codons/BigOldData.csv")
 #compile the right files
 
-compile("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/",
-        "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv")
-simulation_inputs("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/",
-                  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv")
+compile("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/",
+        "E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv")
+simulation_inputs("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/",
+                  "E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv")
 
-YesYes.A6.dat = pwr_tab("G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv",
-                                 "G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv")
-YesNo.A6.dat = pwr_tab("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv",
-                       "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv" )
+YesYes.A6.dat = pwr_tab("E:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv",
+                                 "E:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv")
+YesNo.A6.dat = pwr_tab("E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv",
+                       "E:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv" )
 all.pwr.tab = bind_rows(YesYes.A6.dat,YesNo)
 
 all.pwr.tab = all.pwr.tab %>% arrange(True.Rate.Omega.3) %>% select(True.Rate.Omega.3,`$BUSTED \\omega_3$ MLE`, `SRV $\\omega_3$ MLE`, True.SRV.CV, `Mean CV`, BUSTED_PWR,SRV_PWR)
@@ -217,4 +217,42 @@ all.pwr.tab %>% filter(True.Rate.Omega.3 == 1.1|True.Rate.Omega.3==1.5 | True.Ra
 kable(all.pwr.tab %>% filter(True.Rate.Omega.3 == 1.1|True.Rate.Omega.3==1.5 | True.Rate.Omega.3 == 2 |
                                True.Rate.Omega.3 ==2.5 | True.Rate.Omega.3 == 2.9 ))
 
+NoYes.O2.dat = read.csv(
+  "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv", as.is = TRUE)
+NoYes.O2.Truth = read.csv(
+  "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
 
+pwr_tab_alpha <- function(NoYes.O2.dat, NoYes.O2.Truth) {
+  #add CV column for easier manipulation
+  NoYes.O2.dat = NoYes.O2.dat %>% mutate(True.CV = 1337)
+  #add omega 3 for same reason
+  NoYes.O2.dat = NoYes.O2.dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = length(NoYes.O2.Truth), by = 1)){
+    temp = which(str_detect(NoYes.O2.dat$FILE,NoYes.O2.Truth$Cat[i]))
+    NoYes.O2.dat$True.CV[temp] = NoYes.O2.Truth$CV.SRV[i] 
+    NoYes.O2.dat$True.Rate.Omega.3[temp] = NoYes.O2.Truth$Omega.3.Rate[i]
+    
+  }
+  
+  O2.basic = NoYes.O2.dat %>% group_by(True.CV) %>% summarise(num_reps = n())
+  
+  O2.BUSTED = NoYes.O2.dat %>% group_by(True.CV) %>% filter(BUSTED.P<0.05) %>% tally()
+  colnames(O2.BUSTED)[2] ="BUSTED_PWR"
+  
+  O2.SRV = NoYes.O2.dat %>%  group_by(True.CV) %>% filter(BUSTED.SRV.P<0.05) %>%  tally()
+  colnames(O2.SRV)[2]= "SRV_PWR"
+  
+  O2.pwr.tab = full_join(O2.BUSTED,O2.SRV, by = "True.CV") %>% full_join(.,O2.basic, by = "True.CV") %>% 
+    
+  
+  O2.means = NoYes.O2.dat %>% group_by(True.CV) %>%   summarise("$BUSTED \\omega_3$ MLE" = mean(BUSTED.omega3.MLE),
+                                                                    "SRV $\\omega_3$ MLE" = mean(BUSTED.SRV.omega3.MLE),
+                                                                    "Mean CV" = mean(CV.SRV),
+                                                                    "True.Rate.Omega3" = mean(True.Rate.Omega.3))
+  O2.pwr.tab = full_join(O2.pwr.tab, O2.means, by = "True.CV")
+  O2.pwr.tab = replace(O2.pwr.tab, is.na(O2.pwr.tab), 0)
+  O2.pwr.tab$BUSTED_PWR = O2.pwr.tab$BUSTED_PWR/O2.pwr.tab$num_reps
+  O2.pwr.tab$SRV_PWR = O2.pwr.tab$SRV_PWR/O2.pwr.tab$num_reps
+  return(O2.pwr.tab)
+}
+glimpse(O2.pwr.tab)
