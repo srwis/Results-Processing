@@ -598,6 +598,5 @@ b= omega1.bias %>% gather(key = test, value = estimate, - True.omega3.value, -Tr
 
 b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
 
-
-b %>%  filter( stat == "MLE")%>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth()+
-  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega1.value, color = "red")
+b %>%  filter( stat == "MLE") %>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth(se =F)+
+  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega1.value, color = "red", show.legend = TRUE))
