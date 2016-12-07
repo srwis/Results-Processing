@@ -257,7 +257,7 @@ pwr_tab <- function(dat) {
 }
 ```
 
-```{r get data, include= FALSE}
+```{r data_setup_1000, include= FALSE}
 
 # dir= "G:/BRC/SimResults/Five_seq/"
 # basename = "Five_seq_all"
@@ -276,7 +276,7 @@ sub.1 =YesYes_1000 %>% filter(True.CV == sub$True.CV)
 
 graphs from the report updated
 
-```{r, echo = FALSE, fig.cap="Power Versus the True $\\omega_3$ value for simulations. Grouped by the CV of SRV and the method used to analyze the replicates."}
+```{r pwr_graph, echo = FALSE, fig.cap="Power Versus the True $\\omega_3$ value for simulations. Grouped by the CV of SRV and the method used to analyze the replicates."}
 a.pwr.tab = pwr_tab(sub.1)
 cl = colors()
 a.pwr.tab %>% select(one_of(
@@ -290,7 +290,7 @@ geom_point() + geom_smooth() + labs(x = expression("True "*omega[3]), y = "Power
 
 ```
 
-```{r, echo = FALSE, fig.pos='H',fig.cap= "Showing how the power changes for both analysis as the amount of positive selection and CV of SRV inxrease. Each square represents 100 replicates simulated with the given values.The color corespond to the power analysis to correctly identify positive selection."}
+```{r tile_graph, echo = FALSE, fig.pos='H',fig.cap= "Showing how the power changes for both analysis as the amount of positive selection and CV of SRV inxrease. Each square represents 100 replicates simulated with the given values.The color corespond to the power analysis to correctly identify positive selection."}
 temp=   a.pwr.tab %>% select(one_of(
   c("True.omega3.value", "True.CV", "BUSTED_PWR", "SRV_PWR")
 )) %>% filter(True.omega3.value >= 1.1  && True.CV != 1.031) %>% melt(id.vars = c("True.omega3.value", "True.CV"))
@@ -360,7 +360,7 @@ d  %>%  ggplot(aes(x = True.omega3.value, y = value,color = variable )) +
                                                         labels = c("Mean MLE", expression("True "*omega[1]), "Median MLE"))
 ```
 
-```{r, echo =FALSE, fig.cap="Bias of $\\omega_1$ proportion. The green line is the proportion of sites that were simulated with the true $\\omega_1$ value. The orange line is the mean proportion of sites with $\\omega_1$, while the blue line is the median, according to the respective analysis. "}
+```{r graph_prop_omega1_1000, echo =FALSE, fig.cap="Bias of $\\omega_1$ proportion. The green line is the proportion of sites that were simulated with the true $\\omega_1$ value. The orange line is the mean proportion of sites with $\\omega_1$, while the blue line is the median, according to the respective analysis. "}
 d = c %>% select(True.omega3.value,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>%
   melt(id.vars = c("True.omega3.value","True.CV", "analysis"))
 
@@ -426,7 +426,7 @@ d  %>%  ggplot(aes(x = True.omega3.value, y = value,color = variable )) +
 ```
 
 
-```{r, echo=FALSE, fig.cap="The mean and median proportion of sites with $\\omega_2$  versus the true proportion of sites simulated to have that value."}
+```{r graph prop omega2 1000, echo=FALSE, fig.cap="The mean and median proportion of sites with $\\omega_2$  versus the true proportion of sites simulated to have that value."}
 d = c %>% select(True.omega3.value,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>%
   melt(id.vars = c("True.omega3.value","True.CV", "analysis"))
 
@@ -440,7 +440,7 @@ d  %>%  ggplot(aes(x = True.omega3.value, y = value,color = variable )) +
 
 ##$\omega_3$
 
-```{r table for omega3, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+```{r table for omega3 1000, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
 
 omega3.bias = sub.1 %>% group_by(True.omega3.value, True.CV) %>% summarise_at(vars(matches("omega3")), funs(mean,median))
 
@@ -493,7 +493,7 @@ d  %>%  ggplot(aes(x = True.omega3.value, y = value,color = variable )) +
   scale_color_discrete(name = "Measure", breaks = c("mean.MLE","True.value", "median.MLE"), labels = c("Mean MLE", "Truth","Median MLE"))
 ```
 
-```{r, echo = FALSE}
+```{r graph prop omega3, echo = FALSE}
 
 d = c %>% select(True.omega3.value,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>%
   melt(id.vars = c("True.omega3.value","True.CV", "analysis"))
@@ -695,41 +695,7 @@ CVs = sub.1 %>% select(True.omega3.value, True.CV, CV.SRV) %>% group_by(True.ome
 CVs %>% melt(id.vars = c("True.omega3.value","True.CV")) %>% ggplot(aes(x=True.CV, y = value, color = interaction(variable, True.omega3.value)))+geom_point()+geom_abline(slope = 1, intercept = 0)
 ```
 
-##Tree Length
-
-```{r, echo=FALSE}
- Tree.bias = sub.1 %>% group_by(True.CV, True.omega3.value)
-
- 
- # b= Tree.bias %>% gather(key = test, value = estimate, -True.CV, - True.omega3.value)
- # 
- # b =ungroup(b) %>% mutate(analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
- # b = b %>% arrange(True.CV)
- # b = mutate(b, 
- #            stat = str_extract(b$test,"mean|median"))
- # 
- # #glimpse(b)
- # c = spread(select(b, -test), key = stat, value = estimate)
- # c %>% kable
-```
-
-```{r, echo = FALSE}
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, color = True.CV, size = True.omega3.value)) + geom_point() + geom_abline(intercept = 0, slope = 1)
-
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, size = True.CV, color = True.omega3.value)) + geom_point() + geom_abline(intercept = 0, slope = 1)
-
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, color = True.CV, size = True.omega3.value)) + geom_point() + geom_abline(intercept = 0, slope = 1) + coord_cartesian(xlim = c(0,25),ylim = c(0,25))
-
-
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, size = True.CV, color = True.omega3.value)) + geom_point() + geom_abline(intercept = 0, slope = 1) + coord_cartesian(xlim = c(0,25),ylim = c(0,25))
-
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, color = True.omega3.value)) + geom_point() + geom_abline(intercept = 0, slope = 1) + facet_grid(~True.CV)+ coord_cartesian(xlim = c(0,25),ylim = c(0,25))
-
-Tree.bias %>% ggplot(aes(x=BUSTED.treelength, y = BUSTED.SRV.treelength, color = True.CV)) + geom_point() + geom_abline(intercept = 0, slope = 1) + facet_grid(~True.omega3.value)+ coord_cartesian(xlim = c(0,25),ylim = c(0,25))
-
-```
-
-
+##BRANCH LENGTHS
 
 ```{r branch_length_data, echo = FALSE}
 srv.T_scaler = 4
@@ -1517,6 +1483,8 @@ d  %>%  ggplot(aes(x = True.omega3.value, y = value,color = variable )) +
 
 #Comparsion by sequence length
 
+USing median only 
+
 ```{r, echo = FALSE}
 #that works let us compare between seq length
 
@@ -1531,13 +1499,15 @@ omega1.bias = all.sub %>% group_by(True.omega3.value, True.CV, Sites) %>% summar
 
 b= omega1.bias %>% gather(key = test, value = estimate, - True.omega3.value, -True.CV, -Sites, -True.omega1.value, -True.omega1.prop) 
 
-b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True")) 
 ```
 
 ```{r, echo = FALSE}
 b %>%  filter( stat == "MLE") %>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth(se =F)+
-  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega1.value, color = "red", aes(show.legend = TRUE))
+  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega1.value, color = "red", aes(show.legend = TRUE)) + labs(x = expression("True "*omega[3]), y = expression(omega[1]))
 ```
+
+##$\omega_2$
 
 ```{r, echo = F}
 #just using the median as our stat
@@ -1550,8 +1520,10 @@ b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_ex
 
 ```{r, echo = FALSE}
 b %>%  filter( stat == "MLE") %>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth(se =F)+
-  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega2.value, color = "red", aes(show.legend = TRUE))
+  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega2.value, color = "red", aes(show.legend = TRUE))+ labs(x = expression("True "*omega[3]), y = expression(omega[2]))
 ```
+
+##$\omega_3$
 
 ```{r, echo = F}
 #just using the median as our stat
@@ -1563,8 +1535,10 @@ b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_ex
 ```
 
 ```{r, echo = FALSE}
-b %>%  filter( stat == "MLE") %>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth(se =F) +  facet_grid(True.CV ~ analysis) + geom_abline(slope = 1, intercept = 0, color = 'red')
+b %>%  filter( stat == "MLE") %>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth(se =F) +  facet_grid(True.CV ~ analysis) + geom_abline(slope = 1, intercept = 0, color = 'red') + labs(x = expression("True "*omega[3]), y = expression(omega[3]))
 ```
+
+##$\alpha_1$
 
 ```{r, echo = F}
 #just using the median as our stat

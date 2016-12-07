@@ -549,3 +549,55 @@ t = br.1 %>% melt(id.vars = c("True.omega3.value", "True.CV")) %>% mutate(method
 #red hline is the true value for branch 1 according to what I pulled out of the LF 
 t %>% ggplot(aes(x = True.omega3.value, y = value, color = measure))+ geom_point()+ facet_grid(True.CV~method)+
   geom_hline(yintercept = srv.tree.1.t, color = 'red')
+
+
+##########explore bias with the longer sequence lengths
+#subset the data
+
+all.dat  = read.csv("C:/Users/srwisots/Drive/Muse/BRC/SimResults/Five_seq/All_12_7_16_processed.csv", as.is = TRUE)
+
+#subset for 10,0000
+sub.10 = all.dat %>% filter(Sites == 10000, True.omega3.value > 1, True.CV >= 0, True.CV != 1.906, True.omega3.value <= 2)
+
+
+#subset for 6,000
+
+sub.6 = all.dat %>% filter(Sites==6000, True.omega3.value > 1, True.CV >= 0, True.CV != 1.906, True.omega3.value <= 2)
+
+#omega1 for 10,000
+
+omega1.bias = sub.10 %>% group_by(True.omega3.value, True.CV) %>% summarise_at(vars(matches("omega1")), funs(mean,median))
+
+b= omega1.bias %>% gather(key = test, value = estimate, - True.omega3.value, -True.CV, -True.omega1.value_mean, -True.omega1.prop_mean, -True.omega1.value_median, -True.omega1.prop_median) 
+
+b = ungroup(b) %>% mutate( analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+b = b %>% arrange(True.omega3.value)
+b = mutate(b, 
+           stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+           thing = interaction(stat,idk))
+
+# glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.value.Mean =True.omega1.value_mean, True.Prop.Mean =True.omega1.prop_mean, 
+                True.value.Median =True.omega1.value_median,True.Prop.Median =True.omega1.prop_median)
+c = c %>% select(True.omega3.value, True.CV,analysis, mean.MLE, True.value.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+
+#that works let us compare between seq length
+
+all.sub = rbind(sub.1,sub.6,sub.10)
+ all.sub = all.sub %>%  filter(True.CV %in% c(0, 0.415), True.omega3.value <=2)
+
+ #just using the median as our stat
+omega1.bias = all.sub %>% group_by(True.omega3.value, True.CV, Sites) %>% summarise_at(vars(matches("omega1")), median)
+
+b= omega1.bias %>% gather(key = test, value = estimate, - True.omega3.value, -True.CV, -Sites, -True.omega1.value, -True.omega1.prop) 
+
+b = mutate(ungroup(b), stat = str_extract(b$test, "MLE|prop"), analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+
+
+b %>%  filter( stat == "MLE")%>% ggplot(aes(x =True.omega3.value, y = estimate, color = factor(Sites))) + geom_point() + geom_smooth()+
+  facet_grid(True.CV ~ analysis) + geom_hline(yintercept = b$True.omega1.value, color = "red")
