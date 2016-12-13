@@ -15,6 +15,17 @@ library(reshape2)
 library(dplyr)
 library(xtable)
 
+add_truth <- function(dat, truth){
+  dat = dat %>% mutate(True.CV = 1337)
+  dat = dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = nrow(truth), by = 1)){
+    temp = which(str_detect(dat$FILE,truth$Cat[i]))
+    dat$True.CV[temp] = truth$CV.SRV[i] 
+    dat$True.Rate.Omega.3[temp] = truth$Omega.3.Rate[i]
+  }
+  return(dat)
+}
+
 #Right now these are just he BUSTED-SRV branch lengths
 branch_length <- function(cur.dir){
   jsons <- list.files(path = cur.dir,
@@ -221,6 +232,52 @@ gen.sig.table <- function(dat){
   }
   return(Sel.Prop)
 }
+
+type_I_error <- function(dat){
+
+
+basic.noSel = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
+
+#Type I error
+#number of reps that report selection when there is none
+#aka they incorrectly rejest the null hypothesis
+type.I.BUSTED = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
+  group_by(True.Rate.Omega.3, Sites, cat, True.SRV.CV) %>% filter(BUSTED.P < 0.05 ) %>% tally()
+type.I.BUSTED = rename(type.I.BUSTED, BUSTED.Type.I.Error = n)
+
+type.I.SRV  =  dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
+  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P < 0.05 ) %>% tally()
+type.I.SRV= rename(type.I.SRV,"SRV.Type.I.Error" = n)
+
+type.I.error = full_join(type.I.SRV, type.I.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
+  full_join(., basic.noSel, by = c("cat", "Sites","True.Rate.Omega.3", "True.SRV.CV"))
+type.I.error = replace(type.I.error, is.na(type.I.error),0)
+return(type.I.error)
+
+}
+
+
+type_II_error <- function(dat){
+#Type II error
+#the number of reps that report there is no selection when there is
+#akak they fail to reject the null hypothesis when they should
+
+basic.YesSel = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
+
+type.II.BUSTED = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
+  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.P > 0.05 ) %>% tally()
+type.II.BUSTED = rename(type.II.BUSTED, BUSTED.Type.II.Error = n)
+
+type.II.SRV  =  dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
+  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P > 0.05 ) %>% tally()
+type.II.SRV = rename(type.II.SRV, SRV.Type.II.Error = n)
+
+type.II.error = full_join(type.II.SRV, type.II.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
+  full_join(., basic.YesSel, by = c("cat", "Sites", "True.Rate.Omega.3", "True.SRV.CV"))
+type.II.error= replace(type.II.error, is.na(type.II.error), 0)
+return(type.II.error)
+
+}
 ```
 
 #Expectations
@@ -329,7 +386,7 @@ seq.len.tab = seq.len.tab %>% arrange(Sites)
 
 ```
 
-```{r seq_len_tab, results = "asis", echo=FALSE}
+```{r seq_len_tab, echo=FALSE, message=FALSE, warning=FALSE, results="asis"}
 #print table
 seq.len.tab$Cat = seq.len.tab$Cat %>% str_replace_all(c("YesYes"="$Sel^+ SRV^+$",
                                                                 "YesNo"= "$Sel^+ SRV^-$",
@@ -341,27 +398,37 @@ kable(seq.len.tab, caption = "Set up values for sequence length comparison")
 Above you can see the true values of all the parameters used in the simulation. 
 
 ```{r seq len data setup, include=FALSE}
-YesYes_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/YesYes_results.csv", as.is =T)
+YesYes_10000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesYes_O3_3.csv", as.is =T)
 YesYes_1000_3 = read.csv("G:/BRC/SimREsults/Five_seq/YesYes_1000_results.csv", as.is = T)
 YesYes_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesYes_6000_results.csv", as.is = T)
 
-YesNo_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_results.csv", as.is = T)
+YesNo_10000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_O3_3.csv", as.is = T)
 YesNo_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_6000_results.csv", as.is = T)
 YesNo_1000_3 = read.csv("G:/BRC/SimResults/Five_seq/YesNo_1000_results.csv", as.is = T)
 
-NoYes_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/NoYes_results.csv")
+NoYes_10000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoYes_results.csv")
 NoYes_1000_3 = read.csv("G:/BRC/SimREsults/Five_seq/NoYes_1000_results.csv", as.is = T)
 NoYes_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoYes_6000_results.csv", as.is = T)
 
-NoNo_10000_7 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_results.csv", as.is = T)
+NoNo_10000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_results.csv", as.is = T)
 NoNo_6000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_6000_results.csv", as.is = T)
 NoNo_1000_3 = read.csv("G:/BRC/SimResults/Five_seq/NoNo_1000_results.csv", as.is = T)
 
 
-YesYes_all.dat = mutate(bind_rows(YesYes_10000_7,YesYes_1000_3, YesYes_6000_3), cat = "YesYes")
-YesNo_all.dat = mutate(bind_rows(YesNo_6000_3,YesNo_10000_7, YesNo_1000_3), cat = "YesNo")
-NoNo_all.dat = mutate(bind_rows(NoNo_6000_3,NoNo_10000_7, NoNo_1000_3), cat = "NoNo")
-NoYes_all.dat = mutate(bind_rows(NoYes_6000_3,NoYes_10000_7, NoYes_1000_3), cat = "NoYes")
+NoYes_1000_3 = NoYes_1000_3[which(str_detect(NoYes_1000_3$FILE, "A3_6")),]
+
+YesYes_1000_3= YesYes_1000_3[which(str_detect(YesYes_1000_3$FILE, "O3_3")),]
+
+
+YesNo_1000_3= YesNo_1000_3[which(str_detect(YesNo_1000_3$FILE, "O3_3")),]
+
+YesYes_all.dat = mutate(bind_rows(YesYes_10000_3,YesYes_1000_3, YesYes_6000_3), cat = "YesYes")
+YesNo_all.dat = mutate(bind_rows(YesNo_6000_3,YesNo_10000_3, YesNo_1000_3), cat = "YesNo")
+
+NoNo_all.dat = mutate(bind_rows(NoNo_6000_3,NoNo_10000_3, NoNo_1000_3), cat = "NoNo")
+NoYes_all.dat = mutate(bind_rows(NoYes_6000_3,NoYes_10000_3, NoYes_1000_3), cat = "NoYes")
+
+
 
 
 
@@ -369,6 +436,7 @@ NoYes_all.dat = mutate(bind_rows(NoYes_6000_3,NoYes_10000_7, NoYes_1000_3), cat 
 
 ```{r seq len plots, echo=FALSE, fig.cap="Replicates with selection and with SRV present. Colored by number of sites. Red lines represent p = 0.05. Replicates with p<= 0.05 are considered to show evidence of positive selection."}
 Seq_Len_all.dat = bind_rows(YesYes_all.dat,YesNo_all.dat, NoYes_all.dat, NoNo_all.dat)
+
 
 Seq_Len_all.dat$cat = Seq_Len_all.dat$cat %>% str_replace_all(c("YesYes"="'Sel'^'+'* 'SRV'^'+'",
                                                                 "YesNo"= "'Sel'^'+' * 'SRV'^'-'",
@@ -464,6 +532,20 @@ all$cat = all$cat %>% str_replace_all(c("YesYes"="$Sel^+ SRV^+$",
 kable(all)
  
 ```
+
+###Error Rates
+
+```{r, set up data}
+#Truth 
+
+
+
+
+
+
+
+```
+
 
 
 ##Varying $\omega_3$ Rate
@@ -636,6 +718,98 @@ kable(var.alpha.pwr %>% filter(True.Rate.Omega.3 == 1.1|True.Rate.Omega.3==1.5 |
 
 
 ```
+
+```{r, error rates, echo = FALSE}
+
+
+#varying CV 
+
+#NoYes data
+  NoYes.O2.dat = read.csv(
+  "G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv", as.is = TRUE)
+NoYes.O2.Truth = read.csv(
+  "G:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
+  #add CV column for easier manipulation
+  NoYes.O2.dat = NoYes.O2.dat %>% mutate(True.SRV.CV = 1337)
+  #add omega 3 for same reason
+  NoYes.O2.dat = NoYes.O2.dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = length(NoYes.O2.Truth), by = 1)){
+    temp = which(str_detect(NoYes.O2.dat$FILE,NoYes.O2.Truth$Cat[i]))
+    NoYes.O2.dat$True.SRV.CV[temp] = NoYes.O2.Truth$CV.SRV[i] 
+    NoYes.O2.dat$True.Rate.Omega.3[temp] = NoYes.O2.Truth$Omega.3.Rate[i]
+    
+  }
+#YesYes data
+  
+    YesYes.O2.dat = read.csv(
+  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2.csv", as.is = TRUE)
+YesYes.O2.Truth = read.csv(
+  "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_yesSRV/YesYes_VaryA_O2_Truth.csv", as.is = TRUE)
+  #add CV column for easier manipulation
+  YesYes.O2.dat = YesYes.O2.dat %>% mutate(True.SRV.CV = 1337)
+  #add omega 3 for same reason
+  YesYes.O2.dat = YesYes.O2.dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = length(YesYes.O2.Truth), by = 1)){
+    temp = which(str_detect(YesYes.O2.dat$FILE,YesYes.O2.Truth$Cat[i]))
+    YesYes.O2.dat$True.SRV.CV[temp] = YesYes.O2.Truth$CV.SRV[i] 
+    YesYes.O2.dat$True.Rate.Omega.3[temp] = YesYes.O2.Truth$Omega.3.Rate[i]
+    
+  }
+
+  all_CV_vary = bind_rows(YesYes.O2.dat,NoYes.O2.dat)
+  all_CV_vary = all_CV_vary %>% mutate(cat = str_extract(all_CV_vary$FILE, "YesYes|NoYes|YesNo|NoNo"))
+
+  type_II_error(all_CV_vary)  
+  type_I_error(all_CV_vary)
+```
+
+```{r, error varying omega rate, echo=F, warning=F}
+#varying omega over the same CV 
+#first make sure I have the right csv files 
+YesYes.A6.dat = read.csv("G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO.csv", as.is = TRUE)
+YesYes.A6.Truth = read.csv(                           "G:/BRC/SimResults/Five_seq/YesYes_A6_VaryO_Truth.csv", as.is = TRUE)
+
+  #add CV column for easier manipulation
+  YesYes.A6.dat = YesYes.A6.dat %>% mutate(True.SRV.CV = 1337)
+  #add omega 3 for same reason
+  YesYes.A6.dat = YesYes.A6.dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = length(YesYes.A6.Truth), by = 1)){
+    temp = which(str_detect(YesYes.A6.dat$FILE,YesYes.A6.Truth$Cat[i]))
+    YesYes.A6.dat$True.SRV.CV[temp] = YesYes.A6.Truth$CV.SRV[i] 
+    YesYes.A6.dat$True.Rate.Omega.3[temp] = YesYes.A6.Truth$Omega.3.Rate[i]
+    
+  }
+
+
+
+
+YesNo.A6.dat = read.csv("G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO.csv", as.is = TRUE)
+ YesNo.A6.Truth =  read.csv( "G:/BRC/SimResults/Five_seq/1000_Codons/yesSel_noSRV/YesNo_A6_VaryO_Truth.csv",as.is = T)
+ 
+  #add CV column for easier manipulation
+  YesNo.A6.dat = YesNo.A6.dat %>% mutate(True.SRV.CV = 1337)
+  #add omega 3 for same reason
+  YesNo.A6.dat = YesNo.A6.dat %>% mutate(True.Rate.Omega.3 = 8008)
+  for( i in seq(from = 1, to = length(YesNo.A6.Truth), by = 1)){
+    temp = which(str_detect(YesNo.A6.dat$FILE,YesNo.A6.Truth$Cat[i]))
+    YesNo.A6.dat$True.SRV.CV[temp] = YesNo.A6.Truth$CV.SRV[i] 
+    YesNo.A6.dat$True.Rate.Omega.3[temp] = YesNo.A6.Truth$Omega.3.Rate[i]
+    
+  }
+  
+  all_omega_vary = bind_rows(YesNo.A6.dat,YesYes.A6.dat)
+  all_omega_vary =all_omega_vary %>% mutate(cat = str_extract(all_omega_vary$FILE, "YesYes|NoYes|YesNo|NoNo"))
+  
+
+  type_II_error(all_omega_vary)
+  type_I_error(all_omega_vary)
+  
+  
+
+
+```
+
+
 
 
 

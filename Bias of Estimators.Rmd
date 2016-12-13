@@ -1,0 +1,560 @@
+---
+title: "Explore Bias of Estimates for simulation"
+author: "Sadie Wisotsky"
+date: "November 28, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(jsonlite)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(reshape2)
+library(dplyr)
+library(xtable)
+library(tidyr)
+
+compile <- function(cur.dir,csv){
+  jsons <- list.files(path = cur.dir,
+                      pattern = '*.json', recursive = TRUE)
+  
+  #create empty data.frame with variable names
+  names = c("FILE", "BUSTED.LR", "BUSTED.SRV.LR", "BUSTED.omega3.MLE", "BUSTED.SRV.omega3.MLE", "BUSTED.omega3.prop",
+            "BUSTED.SRV.omega3.prop", 'CV.SRV', 'BUSTED.P', 'BUSTED.SRV.P','BUSTED.AICc','BUSTED.SRV.AICc',
+            'BUSTED.treelength' ,'BUSTED.SRV.treelength', 'Sites', 'Sequences', 
+            'BUSTED.omega1.MLE','BUSTED.SRV.omega1.MLE', 'BUSTED.omega1.prop','BUSTED.SRV.omega1.prop',
+            'BUSTED.omega2.MLE','BUSTED.SRV.omega2.MLE', 'BUSTED.omega2.prop','BUSTED.SRV.omega2.prop', 'SRV.alpha3.MLE',
+            'SRV.alpha3.prop','SRV.alpha1.MLE','SRV.alpha1.prop','SRV.alpha2.MLE','SRV.alpha2.prop')
+  
+  classes = c("character", "numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric",
+              "numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric",
+              "numeric","numeric","numeric")
+  df =read.table(text="", col.names = names, colClasses = classes)
+  for (i in  seq(from=1, to=length(jsons), by=2)){
+    filepath = paste(cur.dir,jsons[i], sep="")
+    
+    test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON()
+    
+    
+    
+    FILE = jsons[i]
+    Sites = length(test$profiles$unconstrained)
+    tree_string = test$fits$`Unconstrained model`$`tree string`
+    x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>%     str_replace_all(",",":") %>% str_split(":")
+    x= unlist(x)
+    x =x[x !=""]
+    br_len = matrix(x,ncol = 2,  byrow = T)
+    colnames(br_len) = c("Branch", "Length")
+    
+    Sequences = sum(grepl("Node*", br_len[,1]) == FALSE)
+    
+    if (grepl("BUSTED-SRV",jsons[i])){
+      filepath = paste(cur.dir,jsons[i], sep="")
+      
+      test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON()      
+      
+      
+      BUSTED.SRV.P = test$`test results`$p
+      BUSTED.SRV.LR =test$`test results`$LR
+      BUSTED.SRV.AICc = test$fits$`Unconstrained model`$`AIC-c`
+      BUSTED.SRV.treelength = test$fits$`Unconstrained model`$`tree length`
+      
+      #OMEGA values for BUSTED.SRV
+      BUSTED.SRV.omega3.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[3,1]
+      BUSTED.SRV.omega3.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[3,2]
+      BUSTED.SRV.omega2.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[2,1]
+      BUSTED.SRV.omega2.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[2,2]
+      BUSTED.SRV.omega1.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[1,1]
+      BUSTED.SRV.omega1.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[1,2]
+      #ALPHA values for BUSTED.SRV
+      SRV.alpha3.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[3,1]
+      SRV.alpha3.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[3,2]
+      SRV.alpha2.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[2,1]
+      SRV.alpha2.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[2,2]
+      SRV.alpha1.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[1,1]
+      SRV.alpha1.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[1,2]
+      
+      mom2 = SRV.alpha3.MLE^2*SRV.alpha3.prop+ SRV.alpha1.MLE^2*SRV.alpha1.prop+ SRV.alpha2.MLE^2*SRV.alpha2.prop
+      mean= SRV.alpha3.MLE*SRV.alpha3.prop+ SRV.alpha1.MLE*SRV.alpha1.prop+ SRV.alpha2.MLE*SRV.alpha2.prop
+      CV.SRV = sqrt(mom2-mean^2)/mean
+      
+    }
+    if (grepl("BUSTED-SRV",jsons[i+1])==FALSE){
+      filepath = paste(cur.dir,jsons[i+1], sep="")
+      
+      test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON()    
+      BUSTED.P = test$`test results`$p
+      BUSTED.LR = test$`test results`$LR
+      BUSTED.AICc = test$fits$`Unconstrained model`$`AIC-c`
+      BUSTED.treelength = test$fits$`Unconstrained model`$`tree length`
+      
+      #OMEGA values for BUSTED
+      BUSTED.omega3.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[3,1]
+      BUSTED.omega3.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[3,2]
+      BUSTED.omega2.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[2,1]
+      BUSTED.omega2.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[2,2]
+      BUSTED.omega1.MLE = test$fits$`Unconstrained model`$`rate distributions`$FG[1,1]
+      BUSTED.omega1.prop = test$fits$`Unconstrained model`$`rate distributions`$FG[1,2]
+      #ALPHA values for BUSTED
+      #       BUSTED.alpha3.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[3,1]
+      #       BUSTED.alpha3.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[3,2]
+      #       BUSTED.alpha2.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[2,1]
+      #       BUSTED.alpha2.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[2,2]
+      #       BUSTED.alpha1.MLE = test$fits$`Unconstrained model`$`rate distributions`$SRV[1,1]
+      #       BUSTED.alpha1.prop = test$fits$`Unconstrained model`$`rate distributions`$SRV[1,2]
+      
+    }
+    
+    df[nrow(df)+1,] <- c(FILE, BUSTED.LR, BUSTED.SRV.LR, BUSTED.omega3.MLE, BUSTED.SRV.omega3.MLE, BUSTED.omega3.prop,
+                         BUSTED.SRV.omega3.prop, CV.SRV, BUSTED.P, BUSTED.SRV.P,BUSTED.AICc,BUSTED.SRV.AICc,
+                         BUSTED.treelength ,BUSTED.SRV.treelength, Sites, Sequences, 
+                         BUSTED.omega1.MLE,BUSTED.SRV.omega1.MLE, BUSTED.omega1.prop,BUSTED.SRV.omega1.prop,
+                         BUSTED.omega2.MLE,BUSTED.SRV.omega2.MLE, BUSTED.omega2.prop,BUSTED.SRV.omega2.prop, SRV.alpha3.MLE,
+                         SRV.alpha3.prop,SRV.alpha1.MLE,SRV.alpha1.prop,SRV.alpha2.MLE,SRV.alpha2.prop)
+    
+  }
+  df[,2:30]=as.numeric(unlist(df[,2:30]))
+  write.csv(file = csv, x = df, row.names= F)
+  # return(df)
+}
+
+simulation_inputs <- function(dir,csv){
+  require("stringr")
+  require("jsonlite")
+  require("dplyr")
+  list = list.files(path = dir, recursive = T, pattern ="^([^.]+)$")
+  #set up the empty data frame
+  names = c("Sites" ,"Cat", "Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate", "Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight",
+            "Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate","Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+  setup.tab = read.table(text = "",col.names = names)
+  #loop thru each file to get info in correct format
+  for(i in seq(from = 1, to= length(list))){
+    x=readLines(paste(dir,list[i], sep = "/"))
+    #making this a readable json
+    x1 = str_replace(x,":\\{", ":\\[")
+    
+    x1[c(5:6,12:13)] = str_replace(x1[c(5:6,12:13)],"\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}", "\\[\\1\\]," )
+    
+    x1[c(7,14)] = str_replace(x1[c(7,14)],"\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}", "\\[\\1\\]" )
+    x1[c(8,15)] = str_replace(x1[c(8,15)], "\\}", "\\]")
+    r= fromJSON(x1)
+    omega_rates = r$`omega distribution`[,1]
+    names(omega_rates)= c("Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate")
+    omega_weights = r$`omega distribution`[,2]
+    names(omega_weights) = c("Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight")
+    
+    Alpha_rates = r$`alpha distribution`[,1]
+    names(Alpha_rates)= c("Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate")
+    Alpha_weights = r$`alpha distribution`[,2]
+    names(Alpha_weights) = c("Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+    
+    
+    setup.tab[nrow(setup.tab)+1,] = c(r$sites,list[i], omega_rates,omega_weights,Alpha_rates,Alpha_weights)
+  }
+  setup.tab =select(setup.tab, Sites, Cat, Omega.1.Rate, Omega.1.Weight, Omega.2.Rate, Omega.2.Weight,Omega.3.Rate, Omega.3.Weight,
+                    Alpha.1.Rate, Alpha.1.Weight, Alpha.2.Rate, Alpha.2.Weight,Alpha.3.Rate, Alpha.3.Weight)
+  setup.tab[,3:14] = as.numeric(unlist(setup.tab[,3:14]))
+  mom2 = setup.tab$Alpha.1.Rate^2*setup.tab$Alpha.1.Weight+setup.tab$Alpha.2.Rate^2*setup.tab$Alpha.2.Weight + setup.tab$Alpha.3.Rate^2*setup.tab$Alpha.3.Weight
+  
+  mean = setup.tab$Alpha.1.Rate*setup.tab$Alpha.1.Weight+setup.tab$Alpha.2.Rate*setup.tab$Alpha.2.Weight + setup.tab$Alpha.3.Rate*setup.tab$Alpha.3.Weight
+  
+  setup.tab = mutate(setup.tab,CV.SRV = sqrt(mom2-mean^2)/mean)
+  
+  #return(setup.tab)
+  write.csv(file = csv, x = setup.tab, row.names= F)
+}
+
+
+add_truth <- function(dat, truth){
+  dat = dat %>% mutate(True.CV = 1337)
+  dat = dat %>% mutate(True.omega3.rate = 8008)
+  dat = dat %>% mutate(True.omega1.rate = 8008)
+  dat = dat %>% mutate(True.omega2.rate = 8008)
+  dat = dat %>% mutate(True.alpha3.rate = 8008)
+  dat = dat %>% mutate(True.alpha2.rate = 8008)
+  dat = dat %>% mutate(True.alpha1.rate = 8008)
+  dat = dat %>% mutate(True.omega3.prop = 8008)
+  dat = dat %>% mutate(True.omega1.prop = 8008)
+  dat = dat %>% mutate(True.omega2.prop = 8008)
+  dat = dat %>% mutate(True.alpha3.prop = 8008)
+  dat = dat %>% mutate(True.alpha2.prop = 8008)
+  dat = dat %>% mutate(True.alpha1.prop = 8008)
+  for( i in seq(from = 1, to = nrow(truth), by = 1)){
+    temp = which(str_detect(dat$FILE,truth$Cat[i]))
+    dat$True.CV[temp] = truth$CV.SRV[i] 
+    dat$True.omega3.rate[temp] = truth$Omega.3.Rate[i]
+    dat$True.omega2.rate[temp] = truth$Omega.2.Rate[i]
+    dat$True.omega1.rate[temp] = truth$Omega.1.Rate[i]
+    dat$True.alpha1.rate[temp] = truth$Alpha.1.Rate[i]
+    dat$True.alpha2.rate[temp] = truth$Alpha.2.Rate[i]
+    dat$True.alpha3.rate[temp] = truth$Alpha.3.Rate[i]
+    dat$True.omega3.prop[temp] = truth$Omega.3.Weight[i]
+    dat$True.omega2.prop[temp] = truth$Omega.2.Weight[i]
+    dat$True.omega1.prop[temp] = truth$Omega.1.Weight[i]
+    dat$True.alpha1.prop[temp] = truth$Alpha.1.Weight[i]
+    dat$True.alpha2.prop[temp] = truth$Alpha.2.Weight[i]
+    dat$True.alpha3.prop[temp] = truth$Alpha.3.Weight[i]
+  }
+  return(dat)
+}
+
+
+
+process_dat <- function(dir, basename){
+  temp = paste(dir,basename,"_Truth.csv", sep = "")
+  #simulation_inputs(dir,temp)
+  truth = read.csv(temp, as.is = T)
+  temp = paste(dir,basename,"_results.csv", sep = "")
+  # compile(dir,temp)
+  dat = read.csv(temp, as.is = T)
+  dat = add_truth(dat, truth)
+  dat = mutate(dat, Cat = str_extract(dat$FILE, "YesYes|YesNo|NoNo|NoYes"))
+  dat$True.CV = round(dat$True.CV, 3)
+  return(dat)
+}
+
+
+pwr_tab <- function(dat) {
+  
+  
+  A1.dat = dat
+  A1.basic = A1.dat %>% group_by(True.omega3.rate, True.CV) %>% summarise(num_reps = n())
+  
+  A1.BUSTED = A1.dat %>% group_by(True.omega3.rate,True.CV, Cat) %>% filter(BUSTED.P <
+                                                                               0.05) %>% tally()
+  A1.BUSTED = rename(A1.BUSTED, "BUSTED_PWR" = n)
+  
+  A1.SRV = A1.dat %>%  group_by(True.omega3.rate, True.CV, Cat) %>% filter(BUSTED.SRV.P <
+                                                                              0.05) %>%  tally()
+  A1.SRV = rename(A1.SRV, "SRV_PWR" = n)
+  
+  A1.pwr.tab = full_join(A1.BUSTED, A1.SRV, by = c("True.omega3.rate", "True.CV", "Cat")) %>% 
+    full_join(., A1.basic, by = c("True.omega3.rate", "True.CV"))
+  
+  
+  
+  A1.means = A1.dat %>% group_by(True.omega3.rate) %>%   summarise(
+    "$BUSTED \\omega_3$ MLE" = mean(BUSTED.omega3.MLE),
+    "SRV $\\omega_3$ MLE" = mean(BUSTED.SRV.omega3.MLE),
+    "Mean CV" = mean(CV.SRV)
+  )
+  A1.pwr.tab = full_join(A1.pwr.tab, A1.means, by = "True.omega3.rate")
+  A1.pwr.tab = replace(A1.pwr.tab, is.na(A1.pwr.tab), 0)
+  A1.pwr.tab$BUSTED_PWR = A1.pwr.tab$BUSTED_PWR / A1.pwr.tab$num_reps
+  A1.pwr.tab$SRV_PWR = A1.pwr.tab$SRV_PWR / A1.pwr.tab$num_reps
+  return(A1.pwr.tab)
+}
+```
+
+```{r get data, include= FALSE}
+
+# dir= "G:/BRC/SimResults/Five_seq/"
+# basename = "Five_seq_all"
+# all.dat = process_dat(dir, basename)
+
+all.dat.4 = read.csv("C:/Users/srwisots/Drive/Muse/BRC/SimResults/Five_seq/ All _processed.csv", as.is= TRUE)
+
+#old.all.dat = all.dat
+all.dat = all.dat.4
+YesYes_1000 = all.dat %>% filter(Sites == 1000, True.omega3.rate >= 1.1, True.CV >= 0, True.CV != 1.031)
+
+sub = YesYes_1000  %>% group_by(True.CV) %>% tally %>% filter(n > 500)
+a =YesYes_1000 %>% filter(True.CV == sub$True.CV)
+```
+
+```{r, echo = FALSE}
+a.pwr.tab = pwr_tab(a)
+a.pwr.tab %>% select(one_of(
+c("True.omega3.rate", "True.CV", "BUSTED_PWR", "SRV_PWR")
+)) %>% melt(id.vars = c("True.omega3.rate", "True.CV")) %>% ggplot(aes(
+x = True.omega3.rate,
+y = value,
+color = interaction(round(True.CV,3), variable, sep = " ")
+)) +
+geom_point() + geom_smooth() + labs(x = expression(omega_3), y = "Power", color = "CV and Analysis")
+
+```
+
+Using the true $\omega_3$ value and the true SRV CV to group things because those are the two parameters that are ebing varied.
+
+
+##$\omega_1$
+
+```{r table for omega1, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+
+
+omega1.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("omega1")), funs(mean,median))
+
+ b= omega1.bias %>% gather(key = test, value = estimate, - True.omega3.rate, -True.CV, -True.omega1.rate_mean, -True.omega1.prop_mean, -True.omega1.rate_median, -True.omega1.prop_median) 
+
+  b = ungroup(b) %>% mutate( analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+ b = b %>% arrange(True.omega3.rate)
+ b = mutate(b, 
+            stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+            thing = interaction(stat,idk))
+
+# glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.rate.Mean =True.omega1.rate_mean, True.Prop.Mean =True.omega1.prop_mean, 
+             True.rate.Median =True.omega1.rate_median,True.Prop.Median =True.omega1.prop_median)
+c = c %>% select(True.omega3.rate, True.CV,analysis, mean.MLE, True.rate.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+c %>% arrange(True.omega3.rate) %>% kable()
+
+```
+
+```{r graph for omega1, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE, True.rate.Mean, median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+
+```
+
+
+##$\omega_2$
+
+```{r table for omega2, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+omega2.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("omega2")), funs(mean,median))
+
+ b= omega2.bias %>% gather(key = test, value = estimate, -True.omega3.rate,-True.CV, -True.omega2.rate_mean, -True.omega2.prop_mean, -True.omega2.rate_median, -True.omega2.prop_median) 
+
+  b =ungroup(b) %>% mutate( analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+ b = b %>% arrange(True.omega3.rate)
+ b = mutate(b, 
+            stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+            thing = interaction(stat,idk))
+
+ #glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.rate.Mean =True.omega2.rate_mean, True.Prop.Mean =True.omega2.prop_mean, 
+             True.rate.Median =True.omega2.rate_median,True.Prop.Median =True.omega2.prop_median)
+c = c %>% select(True.omega3.rate, True.CV,analysis, mean.MLE, True.rate.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+c %>% arrange(True.omega3.rate) %>% kable()
+
+```
+
+```{r graph for omega2, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE, True.rate.Mean, median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+```
+
+##$\omega_3$
+
+```{r table for omega3, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+
+omega3.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("omega3")), funs(mean,median))
+
+ b= omega3.bias %>% gather(key = test, value = estimate, -True.omega3.rate,-True.CV, -True.omega3.prop_mean, -True.omega3.prop_median) 
+
+  b = ungroup(b) %>% mutate( analysis = str_extract(b$test,"BUSTED.SRV\\.|BUSTED\\.|True"))
+ b = b %>% arrange(True.omega3.rate)
+ b = mutate(b, 
+            stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+            thing = interaction(stat,idk))
+
+# glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.Prop.Mean =True.omega3.prop_mean, 
+             True.Prop.Median =True.omega3.prop_median)
+c = c %>% select(True.CV,analysis, mean.MLE, True.omega3.rate, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+c %>% arrange(True.omega3.rate) %>% kable()
+
+```
+
+```{r graph for omega3, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE,  median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+
+```
+
+##$\alpha_1$
+
+```{r alpha1 table, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+
+alpha1.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("alpha1")), funs(mean,median))
+
+b= alpha1.bias %>% gather(key = test, value = estimate, -True.omega3.rate,-True.CV, -True.alpha1.rate_mean, -True.alpha1.prop_mean, -True.alpha1.rate_median, -True.alpha1.prop_median) 
+
+b = ungroup(b) %>% mutate( analysis = str_extract(b$test,"SRV\\.|BUSTED\\.|True"))
+b = b %>% arrange(True.omega3.rate)
+b = mutate(b, 
+           stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+           thing = interaction(stat,idk))
+
+#glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.rate.Mean =True.alpha1.rate_mean, True.Prop.Mean =True.alpha1.prop_mean, 
+                True.rate.Median =True.alpha1.rate_median,True.Prop.Median =True.alpha1.prop_median)
+c = c %>% select(True.omega3.rate, True.CV,analysis, mean.MLE, True.rate.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+c %>% arrange(True.omega3.rate) %>% kable
+
+
+```
+
+```{r graph for alpha1, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE, True.rate.Mean, median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+```
+
+
+##$\alpha_2$
+
+```{r alpha2 table, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+alpha2.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("alpha2")), funs(mean,median))
+
+b= alpha2.bias %>% gather(key = test, value = estimate, -True.omega3.rate,-True.CV, -True.alpha2.rate_mean, -True.alpha2.prop_mean, -True.alpha2.rate_median, -True.alpha2.prop_median) 
+
+b = ungroup(b) %>% mutate( analysis = str_extract(b$test,"SRV\\.|BUSTED\\.|True"))
+b = b %>% arrange(True.omega3.rate)
+b = mutate(b, 
+           stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+           thing = interaction(stat,idk))
+
+#glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.rate.Mean =True.alpha2.rate_mean, True.Prop.Mean =True.alpha2.prop_mean, 
+                True.rate.Median =True.alpha2.rate_median,True.Prop.Median =True.alpha2.prop_median)
+c = c %>% select(True.omega3.rate, True.CV ,analysis, mean.MLE, True.rate.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+
+c %>% arrange(True.omega3.rate) %>% kable
+
+```
+
+```{r graph for alpha2, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE, True.rate.Mean, median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+
+```
+
+
+##$\alpha_3$
+
+```{r alpha 3 table, message=FALSE, warning=FALSE, echo=FALSE, results="asis"}
+
+alpha3.bias = a %>% group_by(True.omega3.rate, True.CV) %>% summarise_at(vars(matches("alpha3")), funs(mean,median))
+
+b= alpha3.bias %>% gather(key = test, value = estimate,-True.omega3.rate, -True.CV, -True.alpha3.rate_mean, -True.alpha3.prop_mean, -True.alpha3.rate_median, -True.alpha3.prop_median) 
+
+b =ungroup(b) %>% mutate( analysis = str_extract(b$test,"SRV\\.|BUSTED\\.|True"))
+b = b %>% arrange(True.omega3.rate)
+b = mutate(b, 
+           stat = str_extract(b$test,"mean|median"), idk = str_extract(b$test, "MLE|prop"),
+           thing = interaction(stat,idk))
+
+#glimpse(b)
+c = spread(select(b, -test, - stat, -idk), key = thing, value = estimate)
+
+#rename some shit
+
+c =c %>% rename(True.rate.Mean =True.alpha3.rate_mean, True.Prop.Mean =True.alpha3.prop_mean, 
+                True.rate.Median =True.alpha3.rate_median,True.Prop.Median =True.alpha3.prop_median)
+c = c %>% select(True.omega3.rate, True.CV,analysis, mean.MLE, True.rate.Mean, median.MLE,mean.prop,True.Prop.Mean,
+                 median.prop)
+
+c %>% arrange(True.omega3.rate) %>% kable
+
+```
+
+```{r graph for alpha3 values, echo = FALSE}
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.MLE, True.rate.Mean, median.MLE) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+d = c %>% select(True.omega3.rate,True.CV, analysis,mean.prop, True.Prop.Mean, median.prop) %>% 
+  melt(id.vars = c("True.omega3.rate","True.CV", "analysis"))
+
+d  %>%  ggplot(aes(x = True.omega3.rate, y = value,color = variable )) + 
+  geom_point() + geom_smooth()+ facet_grid(True.CV~analysis, scales = "free") 
+
+
+```
+
+
+
+```{r, echo = FALSE}
+temp=   a.pwr.tab %>% select(one_of(
+  c("True.omega3.rate", "True.CV", "BUSTED_PWR", "SRV_PWR")
+)) %>% filter(True.omega3.rate >= 1.1  && True.CV != 1.031) %>% melt(id.vars = c("True.omega3.rate", "True.CV")) 
+temp %>% ggplot(aes(x=True.omega3.rate, y = True.CV))+ geom_tile(aes(fill = value))+ facet_grid(~variable)
+
+```
+
