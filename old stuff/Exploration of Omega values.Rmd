@@ -1,0 +1,899 @@
+---
+title: "Exploration of Omega values"
+author: "Sadie Wisotsky"
+date: "September 23 2016"
+output:
+  
+  html_document: default
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(jsonlite)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(reshape2)
+library(dplyr)
+library(xtable)
+
+#Right now these are just he BUSTED-SRV branch lengths
+branch_length <- function(cur.dir){
+  jsons <- list.files(path = cur.dir,
+                      pattern = '*.json')
+  
+  #create empty data.frame with variable names
+  
+  df = read.table(text="", col.names = c("Branch", "File", "length.SRV","length.BUSTED"))
+  for (i in  seq(from=1, to=length(jsons), by=2)){
+    
+    
+    FILE = jsons[i]
+    
+    
+    if(grepl("SRV", jsons[i])){
+      method = "SRV"
+      filepath = paste(cur.dir,jsons[i], sep="")
+      
+      test = fromJSON(filepath)
+      tree_string = test$fits$`Unconstrained model`$`tree string`
+      
+      x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>%
+        str_replace_all(",",":") %>% str_split(":")
+      x= unlist(x)
+      x =x[x !=""]
+      br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.srv = br_len[,2]
+    
+    if(grepl("SRV",jsons[i+1])==FALSE){
+      method = "BUSTED"   
+      filepath = paste(cur.dir,jsons[i+1], sep="")
+      
+      test = fromJSON(filepath)
+      tree_string = test$fits$`Unconstrained model`$`tree string`
+      
+      x= tree_string %>% str_replace_all("\\(",":") %>% str_replace_all("\\)",":") %>% 
+        str_replace_all(",",":") %>% str_split(":")
+      x= unlist(x)
+      x =x[x !=""]
+      br_len = matrix(x,ncol = 2,  byrow = T)
+      
+    }
+    length.BUSTED = br_len[,2]
+    for(k in seq(from=1,to=length(br_len)/2)){
+      df[nrow(df)+1,]=c(br_len[k,1], FILE, length.srv[k],length.BUSTED[k])
+    }
+  }
+  #df_wide = spread(df,File, length)
+  return(df)
+}
+
+#adds significant categories and normalizes alphas
+process.dat <- function(dat, redo.alphas = TRUE){
+  ### Add sig categories
+  dat= cbind(dat,p.cat=cut(dat$BUSTED.P,breaks=c(-Inf,0.05,Inf),
+                           labels = c("S V B", "NS V B")))
+  dat= cbind(dat,p.srv.cat=cut(dat$BUSTED.SRV.P,breaks=c(-Inf,0.05,Inf),
+                               labels = c("S V BSRV", "NS V BSRV")))
+  ###rearrange alphas
+  if(redo.alphas==TRUE){
+    normalize = dat$SRV.alpha1.MLE*dat$SRV.alpha1.prop + 
+      dat$SRV.alpha2.MLE*dat$SRV.alpha2.prop+ 
+      dat$SRV.alpha3.MLE*dat$SRV.alpha3.prop
+    
+    
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE/normalize,
+                true.alpha2 = dat$SRV.alpha2.MLE/normalize,
+                true.alpha3 = dat$SRV.alpha3.MLE/normalize)
+  }
+  else{
+    #sets the true.alpha values to just the standard MLE 
+    #makes the rest of the stream line analysis easier. 
+    #it's either this or make you specify alpha variables in later steps...
+    dat = cbind(dat,true.alpha1 = dat$SRV.alpha1.MLE,
+                true.alpha2 = dat$SRV.alpha2.MLE,
+                true.alpha3 = dat$SRV.alpha3.MLE)  }
+}
+
+# here's where you'd have to start specifying other alphas 
+# returns a list of statistics generated from the boxplot function 
+# note the omega3 value here is from BUSTED SRV 
+# not the omega3 from BUSTED for the same file
+box.sum.stats <- function(dat, subset = NULL){
+  omega3 = boxplot(
+    dat$BUSTED.SRV.omega3.MLE ~ dat$p.cat + dat$p.srv.cat, data = dat, 
+    subset = subset, plot = FALSE
+  )
+  
+  alpha1 = boxplot(
+    dat$true.alpha1 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+  
+  alpha2 = boxplot(
+    dat$true.alpha2 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset, plot = FALSE
+  )
+  
+  alpha3 = boxplot(
+    dat$true.alpha3 ~ dat$p.cat + dat$p.srv.cat, data = dat,
+    subset = subset,plot = FALSE
+  )
+  results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.tables <- function(box.stats){
+  catnames = c("Sel for both", "No Sel for BUSTED", "No Sel for SRV", "No Sel for both")
+  statlist = c("lower whisker","lower hinge","median","upper hinge","upper whisker", "number of files")
+  omega3 = box.stats$omega3$stats
+  omega3 = rbind(omega3,box.stats$omega3$n)
+  colnames(omega3) = catnames
+  rownames(omega3) = statlist
+  
+  alpha1 = box.stats$alpha1$stats
+  alpha1 = rbind(alpha1,box.stats$alpha1$n)
+  colnames(alpha1) = catnames
+  rownames(alpha1) = statlist
+  
+  alpha2 = box.stats$alpha2$stats
+  alpha2 = rbind(alpha2,box.stats$alpha2$n)
+  colnames(alpha2) = catnames
+  rownames(alpha2) = statlist
+  
+  alpha3 = box.stats$alpha3$stats
+  alpha3 = rbind(alpha3,box.stats$alpha3$n)
+  colnames(alpha3) = catnames
+  rownames(alpha3) = statlist
+  
+  results <- list(omega3 =omega3, alpha1 = alpha1,alpha2= alpha2, alpha3 = alpha3)
+  return(results)
+}
+
+gen.summary.o.tabs <- function(dat){
+  omega1.busted =  summary(dat$BUSTED.omega1.MLE)
+  omega1.srv = summary(dat$BUSTED.SRV.omega1.MLE)
+  omega2.busted =summary(dat$BUSTED.omega2.MLE)
+  omega2.srv = summary(dat$BUSTED.SRV.omega2.MLE)
+  omega3.busted =summary(dat$BUSTED.omega3.MLE)
+  omega3.srv = summary(dat$BUSTED.SRV.omega3.MLE)
+  results = rbind(omega1.busted,omega1.srv,omega2.busted,omega2.srv,omega3.busted,omega3.srv)
+  return(results)
+}
+gen.summary.a.tabs <- function(dat){
+  
+  alpha1.srv = summary(dat$true.alpha1)
+  alpha2.srv = summary(dat$true.alpha2)
+  alpha3.srv = summary(dat$true.alpha3)
+  results = rbind(alpha1.srv, alpha2.srv,alpha3.srv)
+  return(results)
+}
+
+gen.sig.table <- function(dat){
+  require("xtable")
+  library("xtable")
+  
+  under.sel.busted = which(dat$BUSTED.P<=0.05)
+  under.sel.srv = which(dat$BUSTED.SRV.P<=0.05)
+  if( length(under.sel.srv) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("Selection:BUSTED")
+    colnames(sel.tab) = c("No Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html")
+    #print(kable(test.table))
+    #return("All alignments are not significant according to BUSTED+SRV")
+  }
+  else if( length(under.sel.busted) == 0){
+    
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("No Selection:BUSTED")
+    colnames(sel.tab) = c("Selection:BUSTED+SRV")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html", file="sel-table.html")
+    #return("All alignments are not significant according to BUSTED")
+  }
+  else {
+    mat = matrix( rep(0),nrow=length(dat$BUSTED.P),ncol = 2,
+                  dimnames= list(1:length(dat$BUSTED.P),
+                                 c("BUSTED", "BUSTED-SRV")))
+    mat[under.sel.busted,1] = 1
+    mat[under.sel.srv,2] = 1 
+    sel.tab = table(mat[,1],mat[,2], dnn = colnames(mat))
+    row.names(sel.tab) = c("No Selection", "Selection")
+    colnames(sel.tab) = c("No Selection", "Selection")
+    Sel.Prop =prop.table(sel.tab)
+    test.table = xtable(Sel.Prop)
+    #print.xtable(test.table, type = "html", file="sel-table.html")
+  }
+  return(Sel.Prop)
+}
+```
+
+
+#Comparison of Sequence lengths
+
+This a quick investigation on the effect of varying sequence length on the power and accuracy of BUSTED and BUSTED+SRV. Three sequence lengths were used: 1,000, 6,000, 10,000 codons. Also note that the 6,000 and 1,00 codon trials had a lower omega 3 rate (o3 = 3 versus o3 = 7) set in an attempt to simultaneously compare the effect of a lower omega 3 rate. 
+
+```{r seq len data setup, include=FALSE}
+YesYes_10000_7 = read.csv("E:/BRC/SimResults/Five_seq/YesYes_results.csv", as.is =T)
+YesYes_1000_3 = read.csv("E:/BRC/SimREsults/Five_seq/YesYes_1000_results.csv", as.is = T)
+YesYes_6000_3 = read.csv("E:/BRC/SimResults/Five_seq/YesYes_6000_results.csv", as.is = T)
+
+YesNo_10000_7 = read.csv("E:/BRC/SimResults/Five_seq/YesNo_results.csv", as.is = T)
+YesNo_6000_3 = read.csv("E:/BRC/SimResults/Five_seq/YesNo_6000_results.csv", as.is = T)
+YesNo_1000_3 = read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_results.csv", as.is = T)
+
+NoYes_10000_7 = read.csv("E:/BRC/SimResults/Five_seq/NoYes_results.csv")
+NoYes_1000_3 = read.csv("E:/BRC/SimREsults/Five_seq/NoYes_1000_results.csv", as.is = T)
+NoYes_6000_3 = read.csv("E:/BRC/SimResults/Five_seq/NoYes_6000_results.csv", as.is = T)
+
+NoNo_10000_7 = read.csv("E:/BRC/SimResults/Five_seq/NoNo_results.csv", as.is = T)
+NoNo_6000_3 = read.csv("E:/BRC/SimResults/Five_seq/NoNo_6000_results.csv", as.is = T)
+NoNo_1000_3 = read.csv("E:/BRC/SimResults/Five_seq/NoNo_1000_results.csv", as.is = T)
+
+
+YesYes_all.dat = mutate(bind_rows(YesYes_10000_7,YesYes_1000_3, YesYes_6000_3), cat = "YesYes")
+YesNo_all.dat = mutate(bind_rows(YesNo_6000_3,YesNo_10000_7, YesNo_1000_3), cat = "YesNo")
+NoNo_all.dat = mutate(bind_rows(NoNo_6000_3,NoNo_10000_7, NoNo_1000_3), cat = "NoNo")
+NoYes_all.dat = mutate(bind_rows(NoYes_6000_3,NoYes_10000_7, NoYes_1000_3), cat = "NoYes")
+
+Seq_Len_all.dat = bind_rows(YesYes_all.dat,YesNo_all.dat, NoYes_all.dat, NoNo_all.dat)
+
+
+```
+
+```{r seq len plots, echo=FALSE, fig.cap="Replicates with selection and with SRV present. Colored by number of sites. Red lines represent p = 0.05. Replicates with p<= 0.05 are considered to show evidence of positive selection."}
+Seq_Len_all.dat %>% ggplot(aes(BUSTED.P,BUSTED.SRV.P))+geom_point(aes(color = factor(Sites)))+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')+ facet_wrap(~cat)
+```
+
+
+```{r, echo = FALSE, results="asis"}
+kable(Seq_Len_all.dat %>% group_by(cat,Sites) %>% select(ends_with(".P")) %>%  summarise_each(funs(mean)), caption = "Shows the mean P value for BUSTED and BUSTED+SRV for each category of simulation and each sequence length.") 
+```
+
+
+So it seems that when selection is present (YesNo and YesYes categories) shorter sequence lengths are more likely to have a p-value > 0. They’re also more likely to report false negatives, thus making analyses run on shorter sequences less powerful. 
+
+
+****************************************
+
+#Varying Omegas
+
+
+Here I varied omega 3 by increments of 0.1. The goal of this simulation was to see at what point BUSTED and BUSTED+SRV detect positive selection in most of the replicates. Also wanted to see when the analyses could detect positive selection but not give a p = 0. This first bit is using the same set up as the yes selection, yes SRV but varying the omega 3 rates from 1.1 to 1.9 with the original omega 3 = 3 set up too. All simulations were 100 replicates and 1000 codons long. I used 1000 codons in order to drop the power to really be able to see how changing the omega 3 effected things. 
+
+
+##Yes Yes varied omegas
+```{r load in all data, echo=F, include= FALSE}
+YesYes_1000.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_results.csv",  as.is = T), True.Rate.Omega.3 = 3)
+
+YesYes_1000_O3_1_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_1_results.csv",  as.is = T), True.Rate.Omega.3 = 1.1)
+
+YesYes_1000_O3_1_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_2_results.csv",  as.is = T), True.Rate.Omega.3 = 1.2)
+
+YesYes_1000_O3_1_3.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_3_results.csv",  as.is = T), True.Rate.Omega.3 = 1.3)
+
+YesYes_1000_O3_1_4.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_4_results.csv",  as.is = T), True.Rate.Omega.3 = 1.4)
+
+YesYes_1000_O3_1_5.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_5_results.csv",  as.is = T), True.Rate.Omega.3 = 1.5)
+
+YesYes_1000_O3_1_6.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_6_results.csv",  as.is = T), True.Rate.Omega.3 = 1.6)
+
+YesYes_1000_O3_1_7.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_7_results.csv",  as.is = T), True.Rate.Omega.3 = 1.7)
+
+YesYes_1000_O3_1_8.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_8_results.csv",  as.is = T), True.Rate.Omega.3 = 1.8)
+
+YesYes_1000_O3_1_9.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_1_9_results.csv",  as.is = T), True.Rate.Omega.3 = 1.9)
+
+YesYes_1000_O3_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_results.csv",  as.is = T), True.Rate.Omega.3 = 2)
+
+YesYes_1000_O3_2_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_1_results.csv",  as.is = T), True.Rate.Omega.3 = 2.1)
+
+YesYes_1000_O3_2_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_2_results.csv",  as.is = T), True.Rate.Omega.3 = 2.2)
+
+YesYes_1000_O3_2_3.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_3_results.csv",  as.is = T), True.Rate.Omega.3 = 2.3)
+
+YesYes_1000_O3_2_4.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_4_results.csv",  as.is = T), True.Rate.Omega.3 = 2.4)
+
+YesYes_1000_O3_2_5.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_5_results.csv",  as.is = T), True.Rate.Omega.3 = 2.5)
+
+YesYes_1000_O3_2_6.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_6_results.csv",  as.is = T), True.Rate.Omega.3 = 2.6)
+
+YesYes_1000_O3_2_7.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_7_results.csv",  as.is = T), True.Rate.Omega.3 = 2.7)
+
+YesYes_1000_O3_2_8.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_8_results.csv",  as.is = T), True.Rate.Omega.3 = 2.8)
+
+YesYes_1000_O3_2_9.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_O3_2_9_results.csv",  as.is = T), True.Rate.Omega.3 = 2.9)
+
+YesYes_all.dat = bind_rows(YesYes_1000.dat, YesYes_1000_O3_1_1.dat, YesYes_1000_O3_1_2.dat, YesYes_1000_O3_1_3.dat, YesYes_1000_O3_1_4.dat, YesYes_1000_O3_1_5.dat, YesYes_1000_O3_1_6.dat, YesYes_1000_O3_1_7.dat, YesYes_1000_O3_1_8.dat, YesYes_1000_O3_1_9.dat, YesYes_1000_O3_2.dat, YesYes_1000_O3_2_1.dat, YesYes_1000_O3_2_2.dat, YesYes_1000_O3_2_3.dat, YesYes_1000_O3_2_4.dat,YesYes_1000_O3_2_5.dat, YesYes_1000_O3_2_6.dat, YesYes_1000_O3_2_7.dat, YesYes_1000_O3_2_8.dat, YesYes_1000_O3_2_9.dat)
+
+```
+
+```{r, echo=FALSE, results= 'asis'}
+
+YesYes_all.dat %>% group_by(True.Rate.Omega.3) %>% select(matches("*\\.P$|*omega3.MLE")) %>% summarise_each(funs(mean)) %>% kable(caption = "summary table for varying omega 3 rates for yes selection yes SRV.") 
+```
+
+```{r boxplots for omega differs, echo=FALSE, fig.cap = "Boxplots for p values from BUSTED and BUSTED+SRV. These are factored by the true omega 3 rate used in the simulation. red line represent p = 0.05. Replicates below this line are considered to have significant evidence of at least one site under positive selection.", fig.pos ="r"}
+
+YesYes_all.dat %>% select(matches("*\\.P$"),True.Rate.Omega.3) %>% melt(id.vars= "True.Rate.Omega.3") %>%   ggplot(aes(x=factor(True.Rate.Omega.3), y=value))+ geom_boxplot(aes(color = variable))+ xlab("True Omega 3 Rate") + geom_hline(aes(yintercept =0.05), color = "red")
+
+```
+
+
+```{r p plot yesyes varying omega, echo=FALSE, fig.cap="Plot of P values for both analyses. Red lines represent p=0.05."}
+YesYes_all.dat %>% ggplot(aes(BUSTED.P, BUSTED.SRV.P))+ geom_point(aes(color = factor(True.Rate.Omega.3))) +guides(col = guide_legend(ncol = 2))+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+
+```
+
+
+```{r, echo=FALSE, results='asis'}
+SRV.P.count = YesYes_all.dat %>% filter(BUSTED.SRV.P>0.05)  %>% group_by(True.Rate.Omega.3)  %>% count()
+
+colnames(SRV.P.count)[2] = "SRV"
+
+#BUSTED.P.count = YesYes_all.dat %>% filter(BUSTED.P>0.05)  %>% group_by(True.Rate.Omega.3)  %>% count()
+
+kable(SRV.P.count, caption = "number of replicates that have p > 0.05")
+```
+
+
+
+So here, like we’ve seen before, when SRV is present BUSTED over estimates omega 3 rates. This causes BUSTED to always return a p = 0 so all replicates were detected to have evidence of positive selection. Which for this simulation is correct. BUSTED+SRV looks to have also over estimated omega 3. Although, I did not control for outliers here. It looks like when omega 3 is less than three BUSTED+SRV reports a lot of false negatives. When omega 3 is three BUSTED+SRV calculates a p > 0.05 for 14 files. Ideally, both analyses should return false negatives or positives about 5% of the time. According to the BUSTED analysis, none of the replicates have a p value > 0.05. 
+
+##Yes Selection, No SRV
+
+```{r, include=FALSE}
+YesNo_1000.dat = mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_results.csv", as.is =T), True.Rate.Omega.3 = 3)
+
+YesNo_1000_O3_1_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_1_results.csv",  as.is = T), True.Rate.Omega.3 = 1.1)
+
+YesNo_1000_O3_1_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_2_results.csv",  as.is = T), True.Rate.Omega.3 = 1.2)
+
+YesNo_1000_O3_1_3.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_3_results.csv",  as.is = T), True.Rate.Omega.3 = 1.3)
+
+YesNo_1000_O3_1_4.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_4_results.csv",  as.is = T), True.Rate.Omega.3 = 1.4)
+
+YesNo_1000_O3_1_5.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_5_results.csv",  as.is = T), True.Rate.Omega.3 = 1.5)
+
+YesNo_1000_O3_1_6.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_6_results.csv",  as.is = T), True.Rate.Omega.3 = 1.6)
+
+YesNo_1000_O3_1_7.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_7_results.csv",  as.is = T), True.Rate.Omega.3 = 1.7)
+
+YesNo_1000_O3_1_8.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_8_results.csv",  as.is = T), True.Rate.Omega.3 = 1.8)
+
+YesNo_1000_O3_1_9.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_1_9_results.csv",  as.is = T), True.Rate.Omega.3 = 1.9)
+
+YesNo_1000_O3_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_results.csv",  as.is = T), True.Rate.Omega.3 = 2)
+
+YesNo_1000_O3_2_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_1_results.csv",  as.is = T), True.Rate.Omega.3 = 2.1)
+
+YesNo_1000_O3_2_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_2_results.csv",  as.is = T), True.Rate.Omega.3 = 2.2)
+
+YesNo_1000_O3_2_3.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_3_results.csv",  as.is = T), True.Rate.Omega.3 = 2.3)
+
+YesNo_1000_O3_2_4.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_4_results.csv",  as.is = T), True.Rate.Omega.3 = 2.4)
+
+YesNo_1000_O3_2_5.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_5_results.csv",  as.is = T), True.Rate.Omega.3 = 2.5)
+
+YesNo_1000_O3_2_6.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_6_results.csv",  as.is = T), True.Rate.Omega.3 = 2.6)
+
+YesNo_1000_O3_2_7.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_7_results.csv",  as.is = T), True.Rate.Omega.3 = 2.7)
+
+YesNo_1000_O3_2_8.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_8_results.csv",  as.is = T), True.Rate.Omega.3 = 2.8)
+
+YesNo_1000_O3_2_9.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesNo_1000_O3_2_9_results.csv",  as.is = T), True.Rate.Omega.3 = 2.9)
+
+
+
+YesNo_Omega_all.dat = bind_rows(YesNo_1000.dat,YesNo_1000_O3_1_1.dat, YesNo_1000_O3_1_2.dat, YesNo_1000_O3_1_3.dat, YesNo_1000_O3_1_4.dat, YesNo_1000_O3_1_5.dat, YesNo_1000_O3_1_6.dat, YesNo_1000_O3_1_7.dat, YesNo_1000_O3_1_7.dat, YesNo_1000_O3_1_8.dat, YesNo_1000_O3_1_9.dat, YesNo_1000_O3_2.dat, YesNo_1000_O3_2_1.dat, YesNo_1000_O3_2_2.dat, YesNo_1000_O3_2_3.dat, YesNo_1000_O3_2_4.dat, YesNo_1000_O3_2_5.dat, YesNo_1000_O3_2_6.dat, YesNo_1000_O3_2_7.dat, YesNo_1000_O3_2_8.dat, YesNo_1000_O3_2_9.dat)
+
+```
+
+```{r p plot for YESNO varying omega, echo= FALSE, fig.cap="P value plot for yes selection, no SRV with varying omega 3 rates. Color indicates the true rate each replicate was simulated with. the red lines are p =0.05. "}
+YesNo_Omega_all.dat %>% ggplot(aes(BUSTED.P, BUSTED.SRV.P))+ geom_point(aes(color = factor(True.Rate.Omega.3))) +guides(col = guide_legend(ncol = 2))+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+
+```
+
+```{r, echo = FALSE, fig.cap="Zoom of p value plot"}
+YesNo_Omega_all.dat %>% ggplot(aes(BUSTED.P, BUSTED.SRV.P))+ geom_point(aes(color = factor(True.Rate.Omega.3))) +guides(col = guide_legend(ncol = 2))+xlim(0,0.06)+ylim(0, 0.06)+geom_vline(xintercept = 0.05,color="red")+geom_hline(yintercept = 0.05, color = 'red')
+```
+
+
+```{r, echo = FALSE, results='asis'} 
+YesNo_Omega_all.dat %>% group_by(True.Rate.Omega.3) %>% select(matches("*\\.P$|*omega3.MLE")) %>% summarise_each(funs(mean)) %>% kable(caption = "summary table for varying omega 3 rates for yes selection no SRV.")
+```
+
+```{r, echo=FALSE, fig.cap="Boxplots for Yes selection", message=FALSE, warning=FALSE}
+YesNo_Omega_all.dat %>% select(matches("*\\.P$"),True.Rate.Omega.3) %>% melt(id.vars= "True.Rate.Omega.3") %>%   ggplot(aes(x=factor(True.Rate.Omega.3), y=value))+ geom_boxplot(aes(color = variable))+ geom_hline(aes(yintercept =0.05))
+```
+
+```{r, echo=FALSE, results='asis'}
+SRV.P.count = YesNo_Omega_all.dat %>% filter(BUSTED.SRV.P>0.05)  %>% group_by(True.Rate.Omega.3)  %>% count()
+
+colnames(SRV.P.count)[2] = "SRV"
+
+BUSTED.P.count = YesNo_Omega_all.dat %>% filter(BUSTED.P>0.05)  %>% group_by(True.Rate.Omega.3)  %>% count()
+colnames(BUSTED.P.count)[2] = "BUSTED"
+
+full_join(SRV.P.count,BUSTED.P.count, by = "True.Rate.Omega.3") %>% kable(caption="Number of replicates that have p > 0.05 for each analyses")
+```
+
+Here we see that at omega 3 = 2.8, there are 5 files that return false negatives. After 2.8, all replicates returned p <0.05. The general trend seem to be that as omega 3 increases the number of false negatives decreases. 
+
+
+******************************
+#Varying Alpha 3 Rates
+
+So I tried to do a similar set-up for alpha rates but forgot that the alpha rates always normalize to 1. for by just varying alpha 3 by 0.1 I got funkier alpha values than anticipated but I think it'll still work. They're just not nice numbers to look at. 
+
+```{r A3 data set up, include=FALSE}
+YesYes_1000.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_results.csv",  as.is = T), True.Rate.Alpha.3 = 6.6666, True.Rate.Omega.3 = 3)
+
+YesYes_1000_A3_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_results.csv",  as.is = T), True.Rate.Alpha.3 = 2.307692307692307, True.Rate.Omega.3 = 2)
+
+YesYes_1000_A3_1_1.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_1_results.csv",  as.is = T), True.Rate.Alpha.3 = 2.481203007518797, True.Rate.Omega.3 = 2)
+
+YesYes_1000_A3_1_2.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_2_results.csv",  as.is = T), True.Rate.Alpha.3 = 2.647058823529412, True.Rate.Omega.3 = 2)
+
+YesYes_1000_A3_1_3.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_3_results.csv",  as.is = T), True.Rate.Alpha.3 = 2.805755395683453, True.Rate.Omega.3 = 2)
+
+YesYes_1000_A3_1_4.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_4_results.csv",  as.is = T), True.Rate.Alpha.3 = 2.957746478873239, True.Rate.Omega.3 = 2)
+
+YesYes_1000_A3_1_5.dat=mutate(read.csv("E:/BRC/SimResults/Five_seq/YesYes_1000_A3_1_5_results.csv",  as.is = T), True.Rate.Alpha.3 = 3.103448275862069, True.Rate.Omega.3 = 2)
+
+YesYes_A3_all.dat = bind_rows(YesYes_1000.dat,YesYes_1000_A3_1.dat, YesYes_1000_A3_1_1.dat, YesYes_1000_A3_1_2.dat, YesYes_1000_A3_1_3.dat, YesYes_1000_A3_1_4.dat, YesYes_1000_A3_1_5.dat)
+
+YesYes_A3_all.dat$True.Rate.Alpha.3=round(YesYes_A3_all.dat$True.Rate.Alpha.3, 3)
+
+
+
+```
+
+```{r plots for varying A3, echo = FALSE}
+
+YesYes_A3_all.dat %>%  ggplot(aes(BUSTED.P, BUSTED.SRV.P))+ geom_point(aes(color = factor(True.Rate.Alpha.3))) + xlim(0,0.05)+ylim(0,0.05)
+YesYes_A3_all.dat %>% group_by(True.Rate.Alpha.3) %>% select(matches("*\\.P$|*Alpha3.MLE|*omega3.MLE")) %>% summarise_each(funs(mean)) %>% kable("markdown")
+
+YesYes_A3_all.dat %>% select(matches("*\\.P$"),True.Rate.Alpha.3) %>% melt(id.vars= "True.Rate.Alpha.3") %>%   ggplot(aes(x=factor(True.Rate.Alpha.3), y=value))+ geom_boxplot(aes(color = variable))+ geom_hline(aes(yintercept =0.05))
+
+YesYes_A3_all.dat %>% select(matches("*\\.P$"),True.Rate.Alpha.3) %>% melt(id.vars= "True.Rate.Alpha.3") %>%   ggplot(aes(x=factor(True.Rate.Alpha.3), y=value))+ geom_boxplot(aes(color = variable))+ geom_hline(aes(yintercept =0.05))
+
+
+```
+
+##No Selection, Yes SRV
+
+want to see if  varying levels of SRV result in less false positives
+
+```{r, include = FALSE}
+simulation_inputs <- function(dir, csv) {
+  require("stringr")
+  require("jsonlite")
+  require("dplyr")
+  list = list.files(path = dir,
+  recursive = T,
+  pattern = "^([^.]+)$")
+  #set up the empty data frame
+  names = c(
+  "Sites" ,
+  "Cat",
+  "Omega 1 Rate",
+  "Omega 2 Rate",
+  "Omega 3 Rate",
+  "Omega 1 Weight",
+  "Omega 2 Weight",
+  "Omega 3 Weight",
+  "Alpha 1 Rate",
+  "Alpha 2 Rate",
+  "Alpha 3 Rate",
+  "Alpha 1 Weight",
+  "Alpha 2 Weight",
+  "Alpha 3 Weight"
+  )
+  setup.tab = read.table(text = "", col.names = names)
+  #loop thru each file to get info in correct format
+  for (i in seq(from = 1, to = length(list))) {
+  x = readLines(paste(dir, list[i], sep = "/"))
+  #making this a readable json
+  x1 = str_replace(x, ":\\{", ":\\[")
+  
+  x1[c(5:6, 12:13)] = str_replace(x1[c(5:6, 12:13)],
+  "\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}",
+  "\\[\\1\\],")
+  
+  x1[c(7, 14)] = str_replace(x1[c(7, 14)],
+  "\\{([-+]?[0-9]*\\.?[0-9]+,[-+]?[0-9]*\\.?[0-9]+)\\}",
+  "\\[\\1\\]")
+  x1[c(8, 15)] = str_replace(x1[c(8, 15)], "\\}", "\\]")
+  r = fromJSON(x1)
+  omega_rates = r$`omega distribution`[, 1]
+  names(omega_rates) = c("Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate")
+  omega_weights = r$`omega distribution`[, 2]
+  names(omega_weights) = c("Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight")
+  
+  Alpha_rates = r$`alpha distribution`[, 1]
+  names(Alpha_rates) = c("Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate")
+  Alpha_weights = r$`alpha distribution`[, 2]
+  names(Alpha_weights) = c("Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+  
+  setup.tab[nrow(setup.tab) + 1, ] = c(r$sites,
+  list[i],
+  omega_rates,
+  omega_weights,
+  Alpha_rates,
+  Alpha_weights)
+  }
+  setup.tab = select(
+  setup.tab,
+  Sites,
+  Cat,
+  Omega.1.Rate,
+  Omega.1.Weight,
+  Omega.2.Rate,
+  Omega.2.Weight,
+  Omega.3.Rate,
+  Omega.3.Weight,
+  Alpha.1.Rate,
+  Alpha.1.Weight,
+  Alpha.2.Rate,
+  Alpha.2.Weight,
+  Alpha.3.Rate,
+  Alpha.3.Weight
+  )
+  
+  #return(setup.tab)
+  write.csv(file = csv,
+  x = setup.tab,
+  row.names = F)
+  }
+  
+  simulation_inputs(
+  "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/",
+  "Vary_A3_1000_YesNo.csv"
+  )
+  
+  true_values_YesNo.dat = read.csv("Vary_A3_1000_YesNo.csv", as.is = FALSE)
+  
+  path = "E:/BRC/SimResults/Five_seq/"
+  result.files =  list.files(path = "E:/BRC/SimResults/Five_seq/",
+  pattern = "NoYes_1000*",
+  full.names = T)
+  r = vector()
+  for (i in 1:length(result.files)) {
+  assign(paste("VaryA3_", i, sep = ""),
+  read.csv(result.files[i], as.is = FALSE))
+    r[i] = paste("VaryA3_", i, sep = "")
+  }
+  
+  all_NoYes = bind_rows(lapply(r, function(name) get(name)))
+  
+  all_NoYes = mutate(all_NoYes,
+                     True.Rate.Alpha.3 = c(rep(select(
+                       true_values_YesNo.dat, matches("Alpha.3.Rate")
+                       )[1, ], 100), 
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[2, ], 100), 
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[3, ], 100), 
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[4, ], 100), 
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[5, ], 100), 
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[6, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[7, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[8, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[9, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[10, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[11, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[12, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[13, ], 100),
+                       rep(select(true_values_YesNo.dat, matches("Alpha.3.Rate"))[14, ], 100)
+                     ))
+  
+  
+  all_NoYes$True.Rate.Alpha.3 = round(all_NoYes$True.Rate.Alpha.3, 3) #round the digits of the true values to a more managable length
+```
+
+
+
+
+```{r plots_all_NoYes}
+
+all_NoYes %>%  ggplot(aes(BUSTED.P, BUSTED.SRV.P))+ geom_point(aes(color =
+factor(True.Rate.Alpha.3))) + xlim(0,0.05)+ylim(0,0.05)
+
+all_NoYes %>% group_by(True.Rate.Alpha.3) %>% select(matches("*\\.P$|*Alpha3.MLE|*omega3.MLE")) %>% summarise_each(funs(mean)) %>% kable("markdown")
+
+all_NoYes %>% select(matches("*\\.P$"),True.Rate.Alpha.3) %>% melt(id.vars= "True.Rate.Alpha.3") %>%   ggplot(aes(x=factor(True.Rate.Alpha.3), y=value))+ geom_boxplot(aes(color = variable))+ geom_hline(aes(yintercept =0.05))
+
+all_NoYes %>% select(matches("*\\.P$"),True.Rate.Alpha.3) %>% melt(id.vars= "True.Rate.Alpha.3") %>%   ggplot(aes(x=factor(True.Rate.Alpha.3), y=value))+ geom_boxplot(aes(color = variable))+ geom_hline(aes(yintercept =0.05))
+
+```
+
+
+
+
+```{r plot_pwr_seqlength}
+num_site = c(1000,6000, 10000)
+test = Seq_Len_all.dat %>% group_by(Sites, cat) %>% summarise(num_reps =n())
+#calculate power for those with positive selection
+YesYes_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesYes_correct)[3] = "SRV"
+
+YesNo_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesNo_correct)[3] = "SRV"
+SRV_w_sel = rbind(YesNo_correct,YesYes_correct)
+
+YesYes_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesYes_correct_BUSTED )[3] = "BUSTED"
+
+YesNo_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesNo_correct_BUSTED )[3] = "BUSTED"
+
+BUSTED_w_sel = rbind(YesNo_correct_BUSTED,YesYes_correct_BUSTED)
+
+w_sel = full_join(BUSTED_w_sel, SRV_w_sel, by = c("Sites","cat"))
+
+
+w_sel 
+
+#calculate power for those categories without 
+
+NoYes_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoYes") %>% filter(BUSTED.SRV.P>0.05) %>% tally() 
+colnames(NoYes_correct)[3] = "SRV"
+
+NoNo_correct = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoNo") %>% filter(BUSTED.SRV.P>0.05) %>% tally() 
+colnames(NoNo_correct)[3] = "SRV"
+SRV_wo_sel = rbind(NoNo_correct,NoYes_correct)
+
+NoYes_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoYes") %>% filter(BUSTED.P>0.05) %>% tally() 
+colnames(NoYes_correct_BUSTED )[3] = "BUSTED"
+
+NoNo_correct_BUSTED = Seq_Len_all.dat %>% group_by(Sites, cat)  %>% filter(cat == "NoNo") %>% filter(BUSTED.P>0.05) %>% tally()
+colnames(NoNo_correct_BUSTED )[3] = "BUSTED"
+
+BUSTED_wo_sel = rbind(NoNo_correct_BUSTED,NoYes_correct_BUSTED)
+
+no_sel = full_join(BUSTED_wo_sel, SRV_wo_sel, by = c("Sites","cat"))
+
+
+
+no_sel 
+
+all = rbind(no_sel,w_sel) %>% full_join(.,test, by = c("Sites","cat")) %>% replace(., is.na(.), 0) %>% arrange(cat)
+all[,3:4] = all[,3:4]/all$num_reps
+
+pdf(file = "E:/BRC/Latex report/figure-latex/pwrSeqLen.pdf")
+all %>% group_by(Sites) %>% summarise_each(funs(mean))%>%  melt(id.vars= c("Sites", "cat", "num_reps")) %>% ggplot(aes(x = Sites, y = value, color = variable))+ geom_point() + geom_smooth() + labs(y = "Mean Power", color = "Analysis")
+dev.off()
+
+```
+
+
+```{r pwr_vary_omega}
+
+all_omega_vary = rbind( mutate(YesNo_Omega_all.dat, cat = "YesNo"),mutate(YesYes_all.dat, cat = "YesYes"))
+
+basic = all_omega_vary %>% group_by(True.Rate.Omega.3, cat) %>% summarise(num_reps =n())
+
+#both cases have selection (cuz oemga_3 >1)
+
+YesYes_correct = all_omega_vary %>% group_by(True.Rate.Omega.3, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesYes_correct)[3] = "SRV"
+
+YesNo_correct = all_omega_vary %>% group_by(True.Rate.Omega.3, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.SRV.P<0.05) %>% tally() 
+colnames(YesNo_correct)[3] = "SRV"
+SRV_w_sel = rbind(YesNo_correct,YesYes_correct)
+
+YesYes_correct_BUSTED = all_omega_vary %>% group_by(True.Rate.Omega.3, cat)  %>% filter(cat == "YesYes") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesYes_correct_BUSTED )[3] = "BUSTED"
+
+YesNo_correct_BUSTED = all_omega_vary %>% group_by(True.Rate.Omega.3, cat)  %>% filter(cat == "YesNo") %>% filter(BUSTED.P<0.05) %>% tally() 
+colnames(YesNo_correct_BUSTED )[3] = "BUSTED"
+
+BUSTED_w_sel = rbind(YesNo_correct_BUSTED,YesYes_correct_BUSTED)
+
+w_sel = full_join(BUSTED_w_sel, SRV_w_sel, by = c("True.Rate.Omega.3","cat")) %>% full_join(.,basic, by= c("True.Rate.Omega.3","cat")) %>% arrange(True.Rate.Omega.3)
+w_sel = replace(w_sel, is.na(w_sel), 0)
+w_sel[,3:4] = w_sel[,3:4]/w_sel$num_reps
+w_sel 
+pdf(file = "E:/BRC/Latex report/figure-latex/pwrVaryO3.pdf")
+w_sel %>% melt(id.vars= c("True.Rate.Omega.3","cat","num_reps")) %>% ggplot(aes(x= True.Rate.Omega.3, y = value,color =interaction(cat,variable))) + geom_point() + geom_smooth() +labs( x = "Omega 3 Rate", y = "Power", color = "Category and Analysis") 
+dev.off()
+```
+
+```{r setup_table_varying omegas}
+  simulation_inputs(
+  "E:/BRC/SimResults/Five_seq/1000_Codons/",
+  "E:/BRC/SimResults/1000_Codons_true_values.csv"
+  ) #this should create a csv for the set up values of all the 1000 codon simulations
+  
+ Codons_true_val = read.csv("E:/BRC/SimResults/1000_Codons_true_values.csv", as.is = TRUE) # read in that csv
+ 
+ Codons_true_val = Codons_true_val[,-1] %>% filter(Omega.3.Rate>= 1.1) %>% filter(Alpha.3.Rate == 1 | Alpha.3.Rate > 6.6)  # limit it to one where O3 >1 to get the varied o3 files only
+
+ 
+Codons_true_val$Cat= str_extract(Codons_true_val$Cat,"NoNo|YesYes|YesNo|NoYes") # rename categories should get only YesNo and YesYes
+
+ true_alphas = Codons_true_val
+
+#set up row names
+Codons_true_val[1,1] = paste0("\\multirow{20}{*}{", Codons_true_val[1,1], "}")
+Codons_true_val[2:20,1] = ""
+Codons_true_val[21,1] = paste0("\\multirow{20}{*}{", Codons_true_val[21,1], "}")
+Codons_true_val[22:40,1] = ""
+#set up colnames
+colnames(Codons_true_val)[-1]=str_extract(colnames(Codons_true_val)[-1],"Rate|Weight")
+
+#make xtable
+vary.omega.setup.xtab = xtable(Codons_true_val, caption = "Simulation set up parameters for varying the $\\omega_3$ rates")
+
+#align table and set fixed col width
+align(vary.omega.setup.xtab) <- c( 'l', rep('p{1.25cm}',13))
+
+#set multicol names
+addtorow <- list()
+addtorow$pos <- list(-1)
+addtorow$command <-paste0(paste0('& \\multicolumn{2}{c}{',
+                                 c("$\\omega_1$","$\\omega_2$","$\\omega_3$",
+                                   "$\\alpha_1$", "$\\alpha_2$",
+                                   "$\\alpha_3$"), '}', collapse=''),'\\\\')
+
+print(vary.omega.setup.xtab, file = "E:/BRC/Latex report/varyomegasetup.tex",
+      include.rownames = FALSE, add.to.row = addtorow, scalebox = 0.7, sanitize.text.function = force)
+  
+
+
+
+omega.mles =all_omega_vary %>% select(matches("*omega..MLE|cat|True.Rate.Omega.3")) %>% melt(id.vars = c("cat","True.Rate.Omega.3")) %>% mutate(analysis = str_extract(string = variable, pattern = "BUSTED.SRV\\.|BUSTED\\."), omega = str_extract(string = variable, pattern = "omega."))
+
+
+omega.mles = rename(omega.mles, Cat = cat, Omega.3.Rate = True.Rate.Omega.3)
+
+omega.mles = omega.mles %>% full_join(true_alphas, by = c("Cat", "Omega.3.Rate")) 
+
+
+true.omegas = omega.mles %>%select(matches("Omega...Rate|analysis|Cat")) %>% mutate(True.Rate.Omega.3 = Omega.3.Rate) %>% rename(omega1.MLE = Omega.1.Rate, omega2.MLE = Omega.2.Rate, omega3.MLE = Omega.3.Rate) %>% melt(id.vars = c("analysis","Cat", "True.Rate.Omega.3"))
+true.omegas$variable = paste0(true.omegas$analysis,true.omegas$variable, sep="")
+true.omegas$variable = factor(true.omegas$variable)
+
+
+x =true.omegas[,-c(1)]
+vars= levels(omega.mles$variable)
+varyO_YesNo.pdfs = vector()
+for (i in seq(from =1, to = length(vars))) {
+  
+assign(paste0("aryO_YesNo",i),omega.mles %>% filter(Cat == "YesNo", variable==vars[i]) %>%  ggplot(aes(value,color = factor(Omega.3.Rate) ))+geom_density() + geom_vline(data =filter(x, variable==vars[i], Cat == "YesNo"),aes(xintercept = value, color = factor(True.Rate.Omega.3)))+ labs(title = vars[i]))
+  varyO_YesNo.pdfs [i] = paste0("o",i)
+}
+
+pdf(file="E:/BRC/Latex report/figure-latex/YesYesVaryBSTD3MLE.pdf")
+print(o1+xlim(0,100))
+dev.off()
+
+pdf(file="E:/BRC/Latex report/figure-latex/YesYesVaryOO%01d.pdf", onefile = FALSE)
+for(i in 1:length(o)){
+
+  print(lapply(o[i], function(name) get(name)))
+}
+dev.off()
+```
+
+
+
+```{r pwrvaryalpha}
+
+ Codons_true_val = read.csv("G:/BRC/SimResults/1000_Codons_true_values.csv", as.is = FALSE) # read in that csv
+ 
+ Codons_true_val = Codons_true_val[,-1] %>% filter(Alpha.3.Rate != Alpha.2.Rate ) %>% filter(Omega.3.Rate ==1 | Omega.3.Rate == 2)  # filter so you only get varying A3
+ 
+Codons_true_val$Cat= str_extract(Codons_true_val$Cat,"NoNo|YesYes|YesNo|NoYes") #rename shit
+
+mom2 = Codons_true_val$Alpha.1.Rate^2*Codons_true_val$Alpha.1.Weight+Codons_true_val$Alpha.2.Rate^2*Codons_true_val$Alpha.2.Weight + Codons_true_val$Alpha.3.Rate^2*Codons_true_val$Alpha.3.Weight
+
+mean = Codons_true_val$Alpha.1.Rate*Codons_true_val$Alpha.1.Weight+Codons_true_val$Alpha.2.Rate*Codons_true_val$Alpha.2.Weight + Codons_true_val$Alpha.3.Rate*Codons_true_val$Alpha.3.Weight
+
+true_alphas = mutate(Codons_true_val,CV.SRV = sqrt(mom2-mean^2)/mean)
+true_alphas =rename(true_alphas,  True.Rate.Alpha.3 = Alpha.3.Rate)
+true_alphas$True.Rate.Alpha.3 = round(true_alphas$True.Rate.Alpha.3, 3)
+
+
+#number of false positive
+all_alpha_vary = rbind(mutate(all_NoYes,Cat = "NoYes"), mutate(YesYes_A3_all.dat[,-32], Cat = "YesYes"))
+
+ basic = all_alpha_vary %>% group_by(True.Rate.Alpha.3, Cat) %>%  summarise(num_reps =n())
+ 
+ mle_alphas = group_by(all_alpha_vary, True.Rate.Alpha.3, Cat) %>% select(matches("*alpha..MLE|CV.SRV")) %>% summarise_each(funs(mean))
+ 
+SRV.P.count = all_alpha_vary %>% group_by(True.Rate.Alpha.3, Cat)  %>% filter(BUSTED.SRV.P<0.05)   %>% tally() 
+colnames(SRV.P.count)[3] = "SRV"
+
+BUSTED.P.count = all_alpha_vary %>% filter(BUSTED.P<0.05)  %>% group_by(True.Rate.Alpha.3,Cat)  %>% tally()
+colnames(BUSTED.P.count)[3] = "BUSTED"
+
+false_pos= full_join(SRV.P.count,BUSTED.P.count, by = c("True.Rate.Alpha.3","Cat"))
+false_pos= full_join(false_pos,basic, by= c("True.Rate.Alpha.3","Cat"))
+false_pos = replace(false_pos, is.na(false_pos), 0)
+false_pos  = false_pos %>% arrange(Cat)
+
+false_pos[,3:4] = false_pos[,3:4]/false_pos$num_reps
+false_pos %>% kable(caption="Number of replicates that have p > 0.05 for each analyses")
+
+false_pos =right_join(select(true_alphas,one_of(c("Cat", "True.Rate.Alpha.3", "CV.SRV"))),false_pos, by=c("True.Rate.Alpha.3", "Cat"))
+false_pos = replace(false_pos, is.na(false_pos), 0)
+pdf(file = "E:/BRC/Latex report/figure-latex/pwrVaryAlpha.pdf")
+false_pos %>% filter(num_reps>0) %>%  melt(id.vars = c("True.Rate.Alpha.3", "CV.SRV", "num_reps", "Cat"))%>% ggplot(aes(x=CV.SRV, y = value, color = interaction(Cat,variable))) +geom_point()+geom_smooth() + labs(x = "CV of SRV", y = "Power")+facet_wrap(~Cat, scales = "free")
+
+dev.off()
+
+
+omega.mles =all_alpha_vary %>% select(matches("*omega..MLE|Cat|True.Rate.Alpha.3|CV.SRV")) %>% melt(id.vars = c("Cat","True.Rate.Alpha.3", "CV.SRV")) %>% mutate(analysis = str_extract(string = variable, pattern = "BUSTED.SRV\\.|BUSTED\\."), omega = str_extract(string = variable, pattern = "omega."))
+
+
+
+omega.mles = omega.mles %>% full_join(true_alphas, by = c("Cat", "True.Rate.Alpha.3")) %>% rename(True.CV.SRV = CV.SRV.y, Est.CV.SRV = CV.SRV.x)
+omega.mles$True.CV.SRV = round(omega.mles$True.CV.SRV,3)
+
+true.omegas = omega.mles %>%select(matches("Omega...Rate|analysis|True.CV.SRV|Cat")) %>% rename(omega1.MLE = Omega.1.Rate, omega2.MLE = Omega.2.Rate, omega3.MLE = Omega.3.Rate) %>% melt(id.vars = c("analysis","True.CV.SRV","Cat"))
+true.omegas$variable = paste0(true.omegas$analysis,true.omegas$variable, sep="")
+true.omegas$variable = factor(true.omegas$variable)
+
+
+x =true.omegas[,-c(1,3)]
+vars= levels(omega.mles$variable)
+o = vector()
+for (i in seq(from =1, to = length(vars))) {
+  
+assign(paste0("o",i),omega.mles %>% filter(Cat == "YesYes", variable==vars[i]) %>%  ggplot(aes(value,color = factor(True.CV.SRV)))+geom_density() + geom_vline(data =filter(x, variable==vars[i], Cat == "YesYes"),aes(xintercept = value, color = factor(True.CV.SRV)))+ labs(title = vars[i]))
+  o[i] = paste0("o",i)
+}
+
+pdf(file="E:/BRC/Latex report/figure-latex/YesYes_O%01d.pdf", onefile = FALSE)
+for(i in 1:length(o)){
+
+  print(lapply(o[i], function(name) get(name)))
+}
+dev.off()
+#-----------------------------------------------------
+#that but now witht the alpha.mles
+#-----------------------------------------------------
+alpha.mles =all_alpha_vary %>% select(matches("*alpha..MLE|Cat|True.Rate.Alpha.3|CV.SRV")) %>% melt(id.vars = c("Cat","True.Rate.Alpha.3", "CV.SRV")) %>% mutate(analysis = str_extract(string = variable, pattern = "SRV\\."), alpha = str_extract(string = variable, pattern = "alpha."))
+
+
+
+alpha.mles = alpha.mles %>% full_join(true_alphas, by = c("Cat", "True.Rate.Alpha.3")) %>% rename(True.CV.SRV = CV.SRV.y, Est.CV.SRV = CV.SRV.x)
+
+true.alphas = alpha.mles %>%select(matches("Alpha...Rate|analysis|True.CV.SRV|Cat|True.Rate.Alpha.3")) %>% filter(Cat == "NoYes") %>% rename(alpha1.MLE = Alpha.1.Rate, alpha2.MLE = Alpha.2.Rate, alpha3.MLE= True.Rate.Alpha.3) %>% melt(id.vars = c("analysis","True.CV.SRV","Cat"))
+true.alphas$variable = paste0(true.alphas$analysis,true.alphas$variable, sep="")
+true.alphas$variable = factor(true.alphas$variable)
+true.alphas$True.CV.SRV = factor(true.alphas$True.CV.SRV)
+
+x =true.alphas[,-c(1,3)]
+vars= levels(alpha.mles$variable)
+a = vector()
+for(i in seq(from =1, to = length(vars))){
+   assign(paste0("p",i), alpha.mles %>% filter(Cat == "NoYes", variable == vars[i]) %>%  ggplot(aes(value,color = factor(True.CV.SRV)))+geom_density() + geom_vline(data =filter(x, variable==vars[i]),aes(xintercept = value, color = True.CV.SRV)) + labs(title = vars[i]) )
+  a[i] = paste0("p",i)
+}
+
+for(i in 1:length(a)){
+  print(lapply(a[i], function(name) get(name)))
+}
+
+
+```
+
