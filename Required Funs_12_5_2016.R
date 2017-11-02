@@ -9,13 +9,15 @@ library(reshape2)
 library(dplyr)
 
 #Right now these are just he BUSTED-SRV branch lengths
+
+cur.dir = "C:/Users/srwisots/Drive/Muse/BRC/SimResults/Five_seq/1000_Codons/VaryO_lowCV/"
 branch_length <- function(cur.dir){
   jsons <- list.files(path = cur.dir,
                       pattern = '*.json', recursive = TRUE)
   
   #create empty data.frame with variable names
   
-  df = read.table(text="", col.names = c("Branch", "File", "length.SRV","length.BUSTED"))
+  df = read.table(text="", col.names = c("Branch", "FILE", "length.SRV","length.BUSTED"))
   for (i in  seq(from=1, to=length(jsons), by=2)){
     
     
@@ -222,8 +224,8 @@ simulation_inputs <- function(dir,csv){
   require("dplyr")
   list = list.files(path = dir, recursive = T, pattern ="^([^.]+)$")
   #set up the empty data frame
-  names = c("Sites" ,"Cat", "Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate", "Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight",
-            "Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate","Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+  names = c("Sites" ,"Cat", "Omega 1 value", "Omega 2 value", "Omega 3 value", "Omega 1 prop", "Omega 2 prop", "Omega 3 prop",
+            "Alpha 1 value", "Alpha 2 value", "Alpha 3 value","Alpha 1 prop", "Alpha 2 prop", "Alpha 3 prop")
   setup.tab = read.table(text = "",col.names = names)
   #loop thru each file to get info in correct format
   for(i in seq(from = 1, to= length(list))){
@@ -237,30 +239,32 @@ simulation_inputs <- function(dir,csv){
     x1[c(8,15)] = str_replace(x1[c(8,15)], "\\}", "\\]")
     r= fromJSON(x1)
     omega_rates = r$`omega distribution`[,1]
-    names(omega_rates)= c("Omega 1 Rate", "Omega 2 Rate", "Omega 3 Rate")
+    names(omega_rates)= c("Omega 1 value", "Omega 2 value", "Omega 3 value")
     omega_weights = r$`omega distribution`[,2]
-    names(omega_weights) = c("Omega 1 Weight", "Omega 2 Weight", "Omega 3 Weight")
+    names(omega_weights) = c("Omega 1 prop", "Omega 2 prop", "Omega 3 prop")
     
     Alpha_rates = r$`alpha distribution`[,1]
-    names(Alpha_rates)= c("Alpha 1 Rate", "Alpha 2 Rate", "Alpha 3 Rate")
+    names(Alpha_rates)= c("Alpha 1 value", "Alpha 2 value", "Alpha 3 value")
     Alpha_weights = r$`alpha distribution`[,2]
-    names(Alpha_weights) = c("Alpha 1 Weight", "Alpha 2 Weight", "Alpha 3 Weight")
+    names(Alpha_weights) = c("Alpha 1 prop", "Alpha 2 prop", "Alpha 3 prop")
     
     
     setup.tab[nrow(setup.tab)+1,] = c(r$sites,list[i], omega_rates,omega_weights,Alpha_rates,Alpha_weights)
   }
-  setup.tab =select(setup.tab, Sites, Cat, Omega.1.Rate, Omega.1.Weight, Omega.2.Rate, Omega.2.Weight,Omega.3.Rate, Omega.3.Weight,
-                    Alpha.1.Rate, Alpha.1.Weight, Alpha.2.Rate, Alpha.2.Weight,Alpha.3.Rate, Alpha.3.Weight)
+  setup.tab =select(setup.tab, Sites, Cat, Omega.1.value, Omega.1.prop, Omega.2.value, Omega.2.prop,Omega.3.value, Omega.3.prop,
+                    Alpha.1.value, Alpha.1.prop, Alpha.2.value, Alpha.2.prop,Alpha.3.value, Alpha.3.prop)
   setup.tab[,3:14] = as.numeric(unlist(setup.tab[,3:14]))
-  mom2 = setup.tab$Alpha.1.Rate^2*setup.tab$Alpha.1.Weight+setup.tab$Alpha.2.Rate^2*setup.tab$Alpha.2.Weight + setup.tab$Alpha.3.Rate^2*setup.tab$Alpha.3.Weight
+  mom2 = setup.tab$Alpha.1.value^2*setup.tab$Alpha.1.prop+setup.tab$Alpha.2.value^2*setup.tab$Alpha.2.prop + setup.tab$Alpha.3.value^2*setup.tab$Alpha.3.prop
   
-  mean = setup.tab$Alpha.1.Rate*setup.tab$Alpha.1.Weight+setup.tab$Alpha.2.Rate*setup.tab$Alpha.2.Weight + setup.tab$Alpha.3.Rate*setup.tab$Alpha.3.Weight
+  mean = setup.tab$Alpha.1.value*setup.tab$Alpha.1.prop+setup.tab$Alpha.2.value*setup.tab$Alpha.2.prop + setup.tab$Alpha.3.value*setup.tab$Alpha.3.prop
   
   setup.tab = mutate(setup.tab,CV.SRV = sqrt(mom2-mean^2)/mean)
   
   #return(setup.tab)
   write.csv(file = csv, x = setup.tab, row.names= F)
 }
+
+
 
 compile <- function(cur.dir,csv){
   jsons <- list.files(path = cur.dir,
@@ -294,10 +298,10 @@ compile <- function(cur.dir,csv){
     br_len = matrix(x,ncol = 2,  byrow = T)
     colnames(br_len) = c("Branch", "Length")
     
-    Sequences = nrow(br_len)
+    Sequences = sum(grepl("Node*", br_len[,1]) == FALSE)
     
-    if (grepl("BUSTED-SRV",jsons[i])){
-      filepath = paste(cur.dir,jsons[i], sep="")
+    if (grepl("BUSTED-SRV",jsons[i+1])){
+      filepath = paste(cur.dir,jsons[i+1], sep="")
       
       test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON()      
       
@@ -327,8 +331,8 @@ compile <- function(cur.dir,csv){
       CV.SRV = sqrt(mom2-mean^2)/mean
       
     }
-    if (grepl("BUSTED-SRV",jsons[i+1])==FALSE){
-      filepath = paste(cur.dir,jsons[i+1], sep="")
+    if (grepl("BUSTED.json",jsons[i])){
+      filepath = paste(cur.dir,jsons[i], sep="")
       
       test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON()    
       BUSTED.P = test$`test results`$p
@@ -366,6 +370,41 @@ compile <- function(cur.dir,csv){
   # return(df)
 }
 
+add_truth <- function(dat, truth){
+  dat = dat %>% mutate(True.CV = 1337)
+  dat = dat %>% mutate(True.omega3.value = 8008)
+  dat = dat %>% mutate(True.omega1.value = 8008)
+  dat = dat %>% mutate(True.omega2.value = 8008)
+  dat = dat %>% mutate(True.alpha3.value = 8008)
+  dat = dat %>% mutate(True.alpha2.value = 8008)
+  dat = dat %>% mutate(True.alpha1.value = 8008)
+  dat = dat %>% mutate(True.omega3.prop = 8008)
+  dat = dat %>% mutate(True.omega1.prop = 8008)
+  dat = dat %>% mutate(True.omega2.prop = 8008)
+  dat = dat %>% mutate(True.alpha3.prop = 8008)
+  dat = dat %>% mutate(True.alpha2.prop = 8008)
+  dat = dat %>% mutate(True.alpha1.prop = 8008)
+  for( i in seq(from = 1, to = nrow(truth), by = 1)){
+    temp = which(str_detect(dat$FILE,truth$Cat[i]))
+    dat$True.CV[temp] = truth$CV.SRV[i] 
+    dat$True.omega3.value[temp] = truth$Omega.3.value[i]
+    dat$True.omega2.value[temp] = truth$Omega.2.value[i]
+    dat$True.omega1.value[temp] = truth$Omega.1.value[i]
+    dat$True.alpha1.value[temp] = truth$Alpha.1.value[i]
+    dat$True.alpha2.value[temp] = truth$Alpha.2.value[i]
+    dat$True.alpha3.value[temp] = truth$Alpha.3.value[i]
+    dat$True.omega3.prop[temp] = truth$Omega.3.prop[i]
+    dat$True.omega2.prop[temp] = truth$Omega.2.prop[i]
+    dat$True.omega1.prop[temp] = truth$Omega.1.prop[i]
+    dat$True.alpha1.prop[temp] = truth$Alpha.1.prop[i]
+    dat$True.alpha2.prop[temp] = truth$Alpha.2.prop[i]
+    dat$True.alpha3.prop[temp] = truth$Alpha.3.prop[i]
+  }
+  return(dat)
+}
+
+
+
 pwr_tab_omegas<- function(csv_data, csv_truth){
   A1.dat = read.csv(csv_data, as.is = TRUE)
   A1.dat = str_extract(A1.dat$FILE, "2_[0-9]*|1_[0-9]*") %>% str_replace("_",".") %>% as.numeric() %>% mutate(A1.dat, True.Rate.Omega.3 = .)
@@ -394,9 +433,9 @@ pwr_tab_omegas<- function(csv_data, csv_truth){
 
 pwr_tab_alpha <- function(NoYes.O2.dat, NoYes.O2.Truth) {
   NoYes.O2.dat = read.csv(
-  "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv", as.is = TRUE)
-NoYes.O2.Truth = read.csv(
-  "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
+    "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2.csv", as.is = TRUE)
+  NoYes.O2.Truth = read.csv(
+    "E:/BRC/SimResults/Five_seq/1000_Codons/noSel_yesSRV/NoYes_VaryA_O2_Truth.csv", as.is = TRUE)
   #add CV column for easier manipulation
   NoYes.O2.dat = NoYes.O2.dat %>% mutate(True.CV = 1337)
   #add omega 3 for same reason
@@ -435,47 +474,47 @@ NoYes.O2.Truth = read.csv(
 
 
 type_I_error <- function(dat){
-
-
-basic.noSel = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
-
-#Type I error
-#number of reps that report selection when there is none
-#aka they incorrectly rejest the null hypothesis
-type.I.BUSTED = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
-  group_by(True.Rate.Omega.3, Sites, cat, True.SRV.CV) %>% filter(BUSTED.P < 0.05 ) %>% tally()
-type.I.BUSTED = rename(type.I.BUSTED, BUSTED.Type.I.Error = n)
-
-type.I.SRV  =  dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
-  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P < 0.05 ) %>% tally()
-type.I.SRV= rename(type.I.SRV,"SRV.Type.I.Error" = n)
-
-type.I.error = full_join(type.I.SRV, type.I.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
-  full_join(., basic.noSel, by = c("cat", "Sites","True.Rate.Omega.3", "True.SRV.CV"))
-type.I.error = replace(type.I.error, is.na(type.I.error),0)
-return(type.I.error)
-
+  
+  
+  basic.noSel = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
+  
+  #Type I error
+  #number of reps that report selection when there is none
+  #aka they incorrectly rejest the null hypothesis
+  type.I.BUSTED = dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
+    group_by(True.Rate.Omega.3, Sites, cat, True.SRV.CV) %>% filter(BUSTED.P < 0.05 ) %>% tally()
+  type.I.BUSTED = rename(type.I.BUSTED, BUSTED.Type.I.Error = n)
+  
+  type.I.SRV  =  dat %>% filter(cat == "NoNo"| cat == "NoYes") %>% 
+    group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P < 0.05 ) %>% tally()
+  type.I.SRV= rename(type.I.SRV,"SRV.Type.I.Error" = n)
+  
+  type.I.error = full_join(type.I.SRV, type.I.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
+    full_join(., basic.noSel, by = c("cat", "Sites","True.Rate.Omega.3", "True.SRV.CV"))
+  type.I.error = replace(type.I.error, is.na(type.I.error),0)
+  return(type.I.error)
+  
 }
 
 
 type_II_error <- function(dat){
-#Type II error
-#the number of reps that report there is no selection when there is
-#akak they fail to reject the null hypothesis when they should
-
-basic.YesSel = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
-
-type.II.BUSTED = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
-  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.P > 0.05 ) %>% tally()
-type.II.BUSTED = rename(type.II.BUSTED, BUSTED.Type.II.Error = n)
-
-type.II.SRV  =  dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
-  group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P > 0.05 ) %>% tally()
-type.II.SRV = rename(type.II.SRV, SRV.Type.II.Error = n)
-
-type.II.error = full_join(type.II.SRV, type.II.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
-  full_join(., basic.YesSel, by = c("cat", "Sites", "True.Rate.Omega.3", "True.SRV.CV"))
-type.II.error= replace(type.II.error, is.na(type.II.error), 0)
-return(type.II.error)
-
+  #Type II error
+  #the number of reps that report there is no selection when there is
+  #akak they fail to reject the null hypothesis when they should
+  
+  basic.YesSel = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% summarise(num_reps = n())
+  
+  type.II.BUSTED = dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
+    group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.P > 0.05 ) %>% tally()
+  type.II.BUSTED = rename(type.II.BUSTED, BUSTED.Type.II.Error = n)
+  
+  type.II.SRV  =  dat %>% filter(cat == "YesNo"| cat == "YesYes") %>% 
+    group_by(True.Rate.Omega.3,Sites, cat,True.SRV.CV) %>% filter(BUSTED.SRV.P > 0.05 ) %>% tally()
+  type.II.SRV = rename(type.II.SRV, SRV.Type.II.Error = n)
+  
+  type.II.error = full_join(type.II.SRV, type.II.BUSTED, by = c("cat","Sites","True.Rate.Omega.3","True.SRV.CV")) %>% 
+    full_join(., basic.YesSel, by = c("cat", "Sites", "True.Rate.Omega.3", "True.SRV.CV"))
+  type.II.error= replace(type.II.error, is.na(type.II.error), 0)
+  return(type.II.error)
+  
 }

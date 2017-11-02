@@ -1,14 +1,11 @@
 ---
 title: "Exploration of Omega values"
 author: "Sadie Wisotsky"
-date: "September 6, 2016"
+date: "September 23 2016"
 output:
-  pdf_document:
-    fig_caption: yes
-    keep_tex: yes
+  
   html_document: default
-  word_document:
-    fig_caption: yes
+  
 ---
 
 ```{r setup, include=FALSE}
@@ -800,7 +797,7 @@ dev.off()
 
 ```{r pwrvaryalpha}
 
- Codons_true_val = read.csv("E:/BRC/SimResults/1000_Codons_true_values.csv", as.is = FALSE) # read in that csv
+ Codons_true_val = read.csv("G:/BRC/SimResults/1000_Codons_true_values.csv", as.is = FALSE) # read in that csv
  
  Codons_true_val = Codons_true_val[,-1] %>% filter(Alpha.3.Rate != Alpha.2.Rate ) %>% filter(Omega.3.Rate ==1 | Omega.3.Rate == 2)  # filter so you only get varying A3
  
@@ -822,17 +819,17 @@ all_alpha_vary = rbind(mutate(all_NoYes,Cat = "NoYes"), mutate(YesYes_A3_all.dat
  
  mle_alphas = group_by(all_alpha_vary, True.Rate.Alpha.3, Cat) %>% select(matches("*alpha..MLE|CV.SRV")) %>% summarise_each(funs(mean))
  
-SRV.P.count = all_alpha_vary %>% group_by(True.Rate.Alpha.3, Cat)  %>% filter(BUSTED.SRV.P>0.05)   %>% tally() 
+SRV.P.count = all_alpha_vary %>% group_by(True.Rate.Alpha.3, Cat)  %>% filter(BUSTED.SRV.P<0.05)   %>% tally() 
 colnames(SRV.P.count)[3] = "SRV"
 
-BUSTED.P.count = all_alpha_vary %>% filter(BUSTED.P>0.05)  %>% group_by(True.Rate.Alpha.3,Cat)  %>% tally()
+BUSTED.P.count = all_alpha_vary %>% filter(BUSTED.P<0.05)  %>% group_by(True.Rate.Alpha.3,Cat)  %>% tally()
 colnames(BUSTED.P.count)[3] = "BUSTED"
 
 false_pos= full_join(SRV.P.count,BUSTED.P.count, by = c("True.Rate.Alpha.3","Cat"))
 false_pos= full_join(false_pos,basic, by= c("True.Rate.Alpha.3","Cat"))
 false_pos = replace(false_pos, is.na(false_pos), 0)
 false_pos  = false_pos %>% arrange(Cat)
-false_pos[15:21,3:4] = 100 -false_pos[15:21,3:4]
+
 false_pos[,3:4] = false_pos[,3:4]/false_pos$num_reps
 false_pos %>% kable(caption="Number of replicates that have p > 0.05 for each analyses")
 
@@ -872,7 +869,7 @@ for(i in 1:length(o)){
 }
 dev.off()
 #-----------------------------------------------------
-#that but now witht he alpha.mles
+#that but now witht the alpha.mles
 #-----------------------------------------------------
 alpha.mles =all_alpha_vary %>% select(matches("*alpha..MLE|Cat|True.Rate.Alpha.3|CV.SRV")) %>% melt(id.vars = c("Cat","True.Rate.Alpha.3", "CV.SRV")) %>% mutate(analysis = str_extract(string = variable, pattern = "SRV\\."), alpha = str_extract(string = variable, pattern = "alpha."))
 
