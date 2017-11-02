@@ -12,8 +12,8 @@ library(dplyr)
 
 
 
-compile <- function(cur.dir,csv){
-  jsons <- list.files(path = cur.dir,
+compile <- function(dir,csv){
+  jsons <- list.files(path = dir,
                       pattern = '*.json', recursive = TRUE) # list all of the json files in a given directory and the subdirectories in it
   
   
@@ -22,10 +22,10 @@ compile <- function(cur.dir,csv){
   #step thru list of json files and read info from them
   #increments of two because want one line for each rep that includes BUSTED and BUSTED-SRV info
   for (i in  seq(from=1, to=length(jsons), by=2)){
-    filepath = paste(cur.dir,jsons[i], sep="") #file path of the current json
+    filepath = paste(dir,jsons[i], sep="") #file path of the current json
     
     if (grepl("SRV.json",jsons[i+1])){
-      filepath = paste(cur.dir,jsons[i+1], sep="")
+      filepath = paste(dir,jsons[i+1], sep="")
       test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON() #read the JSON in
       #have to account for weird behavior caused by nan vs NA 
       
@@ -68,7 +68,7 @@ compile <- function(cur.dir,csv){
     }
     
     if (grepl("BUSTED.json",jsons[i])){
-      filepath = paste(cur.dir,jsons[i], sep="")
+      filepath = paste(dir,jsons[i], sep="")
       test = filepath %>% readLines() %>% gsub(x=.,pattern="nan",replacement ='"NA"') %>% fromJSON() #read the JSON in
       #have to account for weird behavior caused by nan vs NA 
       
@@ -205,6 +205,3 @@ process_dat <- function(dir, basename){
 
 
 
-dir= cur.dir
-basename = "test"
-process_dat(dir, basename)
